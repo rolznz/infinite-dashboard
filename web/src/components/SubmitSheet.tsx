@@ -1,7 +1,8 @@
-import { Loader2Icon, SendIcon } from "lucide-react";
+import { Loader2Icon, SendIcon, WandSparklesIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BuildList } from "@/components/BuildsSheet";
+import { CapabilitiesDialog } from "@/components/CapabilitiesDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -39,6 +40,7 @@ export function SubmitSheet(props: {
   const [prompt, setPrompt] = editing ? [change, setChange] : [draft, setDraft];
   const [author, setAuthor] = useState(() => load(AUTHOR_KEY, ""));
   const [sending, setSending] = useState(false);
+  const [showCapabilities, setShowCapabilities] = useState(false);
 
   useEffect(() => {
     if (props.open && props.prefill) setDraft(props.prefill);
@@ -92,7 +94,9 @@ export function SubmitSheet(props: {
             </>
           ) : (
             <>
-              <SheetTitle className="text-xl">Suggest a widget ✨</SheetTitle>
+              <SheetTitle className="text-xl">
+                {props.builds.length === 0 ? "Suggest a widget ✨" : "New widget"}
+              </SheetTitle>
               <SheetDescription>
                 Describe something fun. An AI agent builds it and it goes live for everyone in a few minutes.
               </SheetDescription>
@@ -148,6 +152,15 @@ export function SubmitSheet(props: {
                   </button>
                 ))}
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 self-start px-2 text-xs text-muted-foreground"
+                onClick={() => setShowCapabilities(true)}
+              >
+                <WandSparklesIcon /> What can widgets do?
+              </Button>
             </div>
           )}
           {!editing && props.builds.length > 0 && (
@@ -163,6 +176,14 @@ export function SubmitSheet(props: {
             </div>
           )}
         </form>
+        <CapabilitiesDialog
+          open={showCapabilities}
+          onOpenChange={setShowCapabilities}
+          onPick={(example) => {
+            setPrompt(example);
+            setShowCapabilities(false);
+          }}
+        />
       </SheetContent>
     </Sheet>
   );
