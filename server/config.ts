@@ -33,7 +33,7 @@ export const config = {
   /** Max paid runtime API calls (e.g. tweet searches from widgets) per hour, across all widgets. Cached hits are free. */
   toolCallsPerHour: Number(process.env.TOOL_CALLS_PER_HOUR ?? 120),
   /** Model for the runtime LLM tool (sdk.tools.llm), any BlockRun chat-completions model id. */
-  llmModel: process.env.LLM_MODEL ?? "google/gemini-3.5-flash-lite",
+  llmModel: process.env.LLM_MODEL ?? "zai/glm-5.3-flash",
   /** Paid LLM calls per visitor IP per hour (cached answers are free). */
   llmCallsPerIpPerHour: Number(process.env.LLM_CALLS_PER_IP_PER_HOUR ?? 20),
   /** Paid text-to-speech calls (sdk.tools.speak) per visitor IP per hour (cached audio is free). */

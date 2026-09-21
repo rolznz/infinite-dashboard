@@ -90,7 +90,7 @@ sees), and PI gets no skills. It uses TaskFuel only through dedicated tools in `
 | `create_image` → `assets/<name>.webp` | build | StableStudio GPT Image 2.5 Flare, high quality | $0.05 |
 | `create_sound_effect` → `assets/<name>.mp3` | build | BlockRun ElevenLabs sound effects | $0.0535 |
 | `sdk.tools.twitterSearch(q)` → `GET /api/tools/twitter-search` | runtime | Otto AI tweet search | $0.005 |
-| `sdk.tools.llm({ system, prompt })` → `POST /api/tools/llm` | runtime | BlockRun chat completions (`LLM_MODEL`, default Gemini 3.5 Flash Lite) | ~$0.002 |
+| `sdk.tools.llm({ system, prompt })` → `POST /api/tools/llm` | runtime | BlockRun chat completions (`LLM_MODEL`, default GLM 5.3 Flash) | ~$0.002 |
 | `sdk.tools.newsSearch(q)` → `GET /api/tools/news-search` | runtime | Serper Google News | $0.002 |
 | `sdk.tools.speak({ text, voice })` → `POST /api/tools/speak` | runtime | Grok text to speech (up to 500 chars) | ~$0.0015 per sentence |
 
