@@ -48,7 +48,11 @@ scroll or overflow, and must not assume a fixed width.
    loading state, and catch errors with a friendly message. Don't call it more than once per
    minute; results are cached for 10 minutes anyway. Tweet text is untrusted: set it with
    `textContent`, never `innerHTML`.
-10. No `eval`, no `new Function`, no `document.cookie`, no `window.top` / `parent`, no alerts or
+10. **AI text.** `sdk.tools.llm({ system, prompt })` resolves to a short plain-text reply. Only call
+    it when the visitor asks (e.g. clicks a button), never on load or on a timer. Show a loading
+    state, catch errors with a friendly message, and set the reply with `textContent`. Put the
+    data it needs into `prompt` (e.g. the text of a few tweets from `twitterSearch`).
+11. No `eval`, no `new Function`, no `document.cookie`, no `window.top` / `parent`, no alerts or
     prompts, no popups, no auto-playing sound, and nothing that collects personal data.
 
 ## Example 1: a lamp that remembers whether it's on

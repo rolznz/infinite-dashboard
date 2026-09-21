@@ -19,6 +19,8 @@ minutes. Goal: **maximize fun and delight without breaking the dashboard.**
     `sdk.asset("<path>")`. A real illustration or sound effect usually beats a hand-drawn one.
   - Runtime (widget code): `sdk.tools.twitterSearch(query)` returns live tweets. Use it when the
     idea involves X/Twitter, trends, news, people's posts or reactions.
+    `sdk.tools.llm({ system, prompt })` returns a short AI-written reply. Use it when the widget
+    needs text written on the fly: roasts, verdicts, poems, summaries of live data.
   **Only make what the idea needs**: usually 0–3 files. No "extra variations". Budget: at most **$1.00** per widget (your
   own tokens don't count). If a tool fails, don't retry it more than once: build a fallback instead
   (SVG/CSS/emoji visuals, WebAudio sounds). Always keep a graceful fallback in case an asset or

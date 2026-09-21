@@ -22,7 +22,7 @@ per widget.*
   in-process through its SDK (Qwen 3.8 27B on Cerebras by default), with full tools, in its own build
   folder per widget. Paid capabilities come from dedicated tools (`worker/tools.ts`), not the raw
   TaskFuel API: `create_image` (GPT Image 2.5) and `create_sound_effect` (ElevenLabs) at build
-  time, and `sdk.tools.twitterSearch()` for widgets at runtime.
+  time, and `sdk.tools.twitterSearch()` / `sdk.tools.llm()` for widgets at runtime.
 - **Checks before merge**: file/manifest checks, `node --check`, then Playwright loads the real
   dashboard with the new widget in it (light and dark) and clicks its buttons. On failure the
   agent gets one repair attempt.
@@ -83,10 +83,12 @@ sees), and PI gets no skills. It uses TaskFuel only through dedicated tools in `
 | `create_image` → `assets/<name>.webp` | build | StableStudio GPT Image 2.5 Flare, high quality | $0.05 |
 | `create_sound_effect` → `assets/<name>.mp3` | build | BlockRun ElevenLabs sound effects | $0.0535 |
 | `sdk.tools.twitterSearch(q)` → `GET /api/tools/twitter-search` | runtime | Otto AI tweet search | $0.005 |
+| `sdk.tools.llm({ system, prompt })` → `POST /api/tools/llm` | runtime | BlockRun chat completions (`LLM_MODEL`, default Gemini 3.5 Flash Lite) | ~$0.002 |
 
 The build tools total their spend, and the orchestrator writes it to `manifest.taskfuelUsd`.
-Runtime searches are cached for 10 minutes per query (shared by all visitors) and capped at
-`TOOL_CALLS_PER_HOUR` paid calls. `TASKFUEL_ENABLED=0` turns all of it off for free test runs.
+Runtime calls are cached for 10 minutes per identical request (shared by all visitors) and capped at
+`TOOL_CALLS_PER_HOUR` paid calls; LLM calls are also capped per IP (`LLM_CALLS_PER_IP_PER_HOUR`,
+default 20) and always get a fixed server-side guardrail prompt. `TASKFUEL_ENABLED=0` turns all of it off for free test runs.
 
 ## Layout
 

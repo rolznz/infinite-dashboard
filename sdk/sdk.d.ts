@@ -35,6 +35,13 @@ export interface SDK {
      * Rejects when the search fails or is rate limited, so always catch.
      */
     twitterSearch(query: string): Promise<Tweet[]>;
+    /**
+     * Ask a small, fast AI model for a short plain-text reply (up to ~300 words), e.g. a roast,
+     * a poem, a verdict or a summary of tweets. `system` sets the style, `prompt` is the request
+     * with any data it needs (together under 6000 characters). An identical request returns the
+     * same cached answer for 10 minutes. Rejects when it fails or is rate limited, so always catch.
+     */
+    llm(input: { system?: string; prompt: string }): Promise<string>;
   };
 }
 

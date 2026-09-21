@@ -56,6 +56,16 @@ export function createSdk(w: Widget) {
         if (!res.ok) throw new Error(json.error ?? `Tweet search failed (${res.status})`);
         return json.tweets;
       },
+      async llm(input: { system?: string; prompt: string }) {
+        const res = await fetch("/api/tools/llm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ system: input?.system, prompt: input?.prompt }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error ?? `AI request failed (${res.status})`);
+        return json.text as string;
+      },
     },
   };
 }

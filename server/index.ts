@@ -9,7 +9,7 @@ import { createSuggestion, listEvents, listSuggestions, suggestionDto } from "./
 import { initDataDirs, listWidgets, toggleLike, widgetDto } from "./widgets.ts";
 import { startOrchestrator } from "../worker/orchestrator.ts";
 import { checkModelAvailable } from "../worker/build.ts";
-import { ToolError, twitterSearch } from "../worker/tools.ts";
+import { llmComplete, ToolError, twitterSearch } from "../worker/tools.ts";
 
 initDataDirs();
 
@@ -175,6 +175,15 @@ app.get("/api/tools/twitter-search", async (req, res) => {
   } catch (e) {
     const status = e instanceof ToolError ? e.status : 502;
     res.status(status).json({ error: e instanceof ToolError ? e.message : "Tweet search failed, try again later" });
+  }
+});
+
+app.post("/api/tools/llm", async (req, res) => {
+  try {
+    res.json({ text: await llmComplete(req.body ?? {}, clientIp(req)) });
+  } catch (e) {
+    const status = e instanceof ToolError ? e.status : 502;
+    res.status(status).json({ error: e instanceof ToolError ? e.message : "The AI failed, try again later" });
   }
 });
 

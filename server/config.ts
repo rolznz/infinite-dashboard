@@ -30,6 +30,10 @@ export const config = {
   taskfuelApiKey,
   /** Max paid runtime API calls (e.g. tweet searches from widgets) per hour, across all widgets. Cached hits are free. */
   toolCallsPerHour: Number(process.env.TOOL_CALLS_PER_HOUR ?? 120),
+  /** Model for the runtime LLM tool (sdk.tools.llm), any BlockRun chat-completions model id. */
+  llmModel: process.env.LLM_MODEL ?? "google/gemini-3.5-flash-lite",
+  /** Paid LLM calls per visitor IP per hour (cached answers are free). */
+  llmCallsPerIpPerHour: Number(process.env.LLM_CALLS_PER_IP_PER_HOUR ?? 20),
 
   maxBuilds: Number(process.env.MAX_BUILDS ?? 2),
   buildTimeoutMs: Number(process.env.BUILD_TIMEOUT_MIN ?? 15) * 60_000,
