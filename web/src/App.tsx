@@ -111,6 +111,7 @@ export default function App() {
 
   function viewWidget(id: string) {
     setBuildsOpen(false);
+    setSubmitOpen(false);
     setHighlightWidget(id);
     setTimeout(() => document.getElementById(`widget-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
     setTimeout(() => setHighlightWidget(undefined), 2500);
@@ -170,7 +171,15 @@ export default function App() {
       )}
 
       <ErrorBoundary>
-        <SubmitSheet open={submitOpen} onOpenChange={setSubmitOpen} prefill={prefill} forkOf={forkOf} onSubmitted={onSubmitted} />
+        <SubmitSheet
+          open={submitOpen}
+          onOpenChange={setSubmitOpen}
+          prefill={prefill}
+          forkOf={forkOf}
+          onSubmitted={onSubmitted}
+          builds={builds}
+          onViewWidget={viewWidget}
+        />
         <ForkDialog widget={forkWidget} onOpenChange={(open) => !open && setForkWidget(undefined)} onFork={fork} />
         <BuildsSheet
           open={buildsOpen}

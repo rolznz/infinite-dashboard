@@ -1,6 +1,7 @@
 import { Loader2Icon, SendIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { BuildList } from "@/components/BuildsSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -21,6 +22,9 @@ export function SubmitSheet(props: {
   /** Set when forking: the live widget's prompt, which must be changed before submitting. */
   forkOf?: string;
   onSubmitted: (s: Suggestion) => void;
+  /** The visitor's previous builds, shown under the form. */
+  builds: Suggestion[];
+  onViewWidget: (widgetId: string) => void;
 }) {
   const isDesktop = useIsDesktop();
   const [prompt, setPrompt] = useState(() => load(DRAFT_KEY, ""));
@@ -112,6 +116,12 @@ export function SubmitSheet(props: {
               ))}
             </div>
           </div>
+          {props.builds.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="text-xs font-medium text-muted-foreground">Your builds</div>
+              <BuildList builds={props.builds} onViewWidget={props.onViewWidget} />
+            </div>
+          )}
         </form>
       </SheetContent>
     </Sheet>

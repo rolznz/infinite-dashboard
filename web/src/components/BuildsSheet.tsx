@@ -89,7 +89,31 @@ function Build(props: {
   );
 }
 
-/** The visitor's own builds. Opens after submitting; there's no public prompt log. */
+/** The visitor's own builds, newest first. */
+export function BuildList(props: { builds: Suggestion[]; highlightId?: string; onViewWidget: (widgetId: string) => void }) {
+  const [expanded, setExpanded] = useState(props.highlightId);
+
+  useEffect(() => {
+    if (props.highlightId) setExpanded(props.highlightId);
+  }, [props.highlightId]);
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {props.builds.map((s) => (
+        <Build
+          key={s.id}
+          s={s}
+          highlighted={s.id === props.highlightId}
+          expanded={expanded === s.id}
+          onToggle={() => setExpanded((e) => (e === s.id ? undefined : s.id))}
+          onViewWidget={props.onViewWidget}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/** Opens after submitting; there's no public prompt log. */
 export function BuildsSheet(props: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -98,11 +122,6 @@ export function BuildsSheet(props: {
   onViewWidget: (widgetId: string) => void;
 }) {
   const isDesktop = useIsDesktop();
-  const [expanded, setExpanded] = useState<string>();
-
-  useEffect(() => {
-    if (props.open && props.highlightId) setExpanded(props.highlightId);
-  }, [props.open, props.highlightId]);
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
@@ -115,18 +134,7 @@ export function BuildsSheet(props: {
           <SheetDescription>Your widget appears on the dashboard as soon as it's live.</SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-4 pb-6">
-          <ul className="flex flex-col gap-2">
-            {props.builds.map((s) => (
-              <Build
-                key={s.id}
-                s={s}
-                highlighted={s.id === props.highlightId}
-                expanded={expanded === s.id}
-                onToggle={() => setExpanded((e) => (e === s.id ? undefined : s.id))}
-                onViewWidget={props.onViewWidget}
-              />
-            ))}
-          </ul>
+          <BuildList builds={props.builds} highlightId={props.highlightId} onViewWidget={props.onViewWidget} />
         </div>
       </SheetContent>
     </Sheet>
