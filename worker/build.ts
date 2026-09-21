@@ -115,7 +115,14 @@ export interface Builder {
   dispose(): void;
 }
 
-export async function createBuilder(opts: { suggestionId: string; cwd: string }): Promise<Builder> {
+export async function createBuilder(opts: {
+  suggestionId: string;
+  cwd: string;
+  /** Aborted when the owner cancels the build. */
+  signal: AbortSignal;
+  /** Epoch ms after which the whole job is stopped. */
+  deadline: number;
+}): Promise<Builder> {
   const runtime = await getRuntime();
   const model = runtime.getModel(config.piProvider, config.piModel);
   if (!model) throw new Error(`Model ${config.piProvider}/${config.piModel} not found`);
@@ -160,10 +167,30 @@ export async function createBuilder(opts: { suggestionId: string; cwd: string })
 
   const rawLog = fs.createWriteStream(path.join(config.logs, `${opts.suggestionId}.jsonl`), { flags: "a" });
   let tokens = 0;
+  let turns = 0;
   let summary: string | undefined;
   let mergedPrompt: string | undefined;
   const outside = new Set<string>();
+
+  // Cancel, deadline and turn cap all end the job the same way: abort the session and fail the current run.
+  let stopped: Error | undefined;
+  let rejectRun: ((e: Error) => void) | undefined;
+  const stop = (e: Error) => {
+    if (stopped) return;
+    stopped = e;
+    jobLog(opts.suggestionId, `STOPPING: ${e.message}`);
+    session.abort().catch(() => {});
+    rejectRun?.(e);
+  };
+  const onAbort = () => stop(new Error("cancelled"));
+  opts.signal.addEventListener("abort", onAbort, { once: true });
+  if (opts.signal.aborted) onAbort();
+  const timer = setTimeout(() => stop(new Error("took too long")), Math.max(0, opts.deadline - Date.now()));
+
   const unsubscribe = session.subscribe((event) => {
+    if (event.type === "message_end" && event.message.role === "assistant" && ++turns >= config.maxBuildTurns) {
+      stop(new Error(`too many turns (${turns})`));
+    }
     if (event.type === "tool_execution_start" && (event.toolName === "write" || event.toolName === "edit")) {
       const p = String(event.args?.path ?? event.args?.file_path ?? "");
       const abs = path.resolve(opts.cwd, p);
@@ -187,18 +214,14 @@ export async function createBuilder(opts: { suggestionId: string; cwd: string })
   return {
     session,
     async run(message) {
-      let timer: NodeJS.Timeout | undefined;
-      const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          session.abort().catch(() => {});
-          reject(new Error("took too long"));
-        }, config.buildTimeoutMs);
-      });
+      if (stopped) throw stopped;
+      const halted = new Promise<never>((_, reject) => (rejectRun = reject));
       try {
-        await Promise.race([session.prompt(message), timeout]);
+        await Promise.race([session.prompt(message), halted]);
       } finally {
-        clearTimeout(timer);
+        rejectRun = undefined;
       }
+      if (stopped) throw stopped;
     },
     tokens: () => tokens,
     outsideWrites: () => [...outside],
@@ -206,6 +229,8 @@ export async function createBuilder(opts: { suggestionId: string; cwd: string })
     mergedPrompt: () => mergedPrompt,
     spentUsd: buildTools.spentUsd,
     dispose() {
+      clearTimeout(timer);
+      opts.signal.removeEventListener("abort", onAbort);
       unsubscribe();
       rawLog.end();
       session.dispose();

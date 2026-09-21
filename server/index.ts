@@ -7,7 +7,7 @@ import { db, getSuggestion, type WidgetRow } from "./db.ts";
 import { onlineCount, broadcast, sseHandler } from "./sse.ts";
 import { createSuggestion, listEvents, listSuggestions, suggestionDto } from "./suggestions.ts";
 import { initDataDirs, listWidgets, toggleLike, widgetDto } from "./widgets.ts";
-import { startOrchestrator } from "../worker/orchestrator.ts";
+import { cancelSuggestion, startOrchestrator } from "../worker/orchestrator.ts";
 import { checkModelAvailable } from "../worker/build.ts";
 import { llmComplete, ToolError, twitterSearch } from "../worker/tools.ts";
 
@@ -166,6 +166,18 @@ app.get("/api/suggestions/:id", (req, res) => {
   if (!s) return res.status(404).json({ error: "Not found" });
   const events = listEvents(s.id).map((e) => ({ id: e.id, status: e.status, message: e.message, at: e.at }));
   res.json({ suggestion: suggestionDto(s), events });
+});
+
+// Only the visitor who submitted a build can cancel it.
+app.post("/api/suggestions/:id/cancel", (req, res) => {
+  const s = getSuggestion(req.params.id);
+  const visitor = String(req.body?.visitor ?? "");
+  if (!s || !visitor || s.visitor !== visitor) return res.status(404).json({ error: "Not found" });
+  if (!["pending", "triaging", "accepted", "building", "testing"].includes(s.status)) {
+    return res.status(409).json({ error: "This build has already finished." });
+  }
+  cancelSuggestion(s.id);
+  res.json({ ok: true });
 });
 
 // ---------- runtime tools for widgets (paid via TaskFuel on the server, cached and capped) ----------

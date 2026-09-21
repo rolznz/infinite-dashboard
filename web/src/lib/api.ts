@@ -27,5 +27,7 @@ export const api = {
     request<{ suggestions: Suggestion[] }>(`/api/suggestions?ids=${encodeURIComponent(ids.join(","))}`).then(
       (r) => r.suggestions,
     ),
+  cancel: (id: string, visitor: string) =>
+    request<{ ok: true }>(`/api/suggestions/${id}/cancel`, { method: "POST", body: JSON.stringify({ visitor }) }),
   suggestion: (id: string) => request<{ suggestion: Suggestion; events: SuggestionEvent[] }>(`/api/suggestions/${id}`),
 };

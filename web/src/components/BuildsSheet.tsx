@@ -1,9 +1,11 @@
-import { ChevronDownIcon, ExternalLinkIcon, PencilIcon, RotateCcwIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, Loader2Icon, PencilIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
+import { visitorId } from "@/lib/storage";
 import { on } from "@/lib/live";
 import { IN_PROGRESS, type Suggestion, type SuggestionEvent, type Widget } from "@/lib/types";
 import { useIsDesktop } from "@/lib/useMediaQuery";
@@ -41,6 +43,31 @@ function Timeline({ id }: { id: string }) {
   );
 }
 
+/** Stops a queued or running build; it then shows up as failed with a Try again option. */
+function CancelButton({ s }: { s: Suggestion }) {
+  const [sending, setSending] = useState(false);
+  if (!IN_PROGRESS.includes(s.status)) return null;
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      className="mt-2 gap-1"
+      disabled={sending}
+      onClick={async () => {
+        setSending(true);
+        try {
+          await api.cancel(s.id, visitorId);
+        } catch (e) {
+          toast.error((e as Error).message);
+          setSending(false);
+        }
+      }}
+    >
+      {sending ? <Loader2Icon className="animate-spin" /> : <XIcon />} Cancel
+    </Button>
+  );
+}
+
 /** A follow-up edit, shown under the build it changed. */
 function Edit(props: { s: Suggestion; highlighted: boolean; expanded: boolean; onToggle: () => void }) {
   const { s } = props;
@@ -59,6 +86,7 @@ function Edit(props: { s: Suggestion; highlighted: boolean; expanded: boolean; o
       {s.reason && (s.status === "denied" || s.status === "failed") && (
         <p className="mt-1 pl-5.5 text-xs text-destructive">{s.reason}</p>
       )}
+      <CancelButton s={s} />
       {props.expanded && (
         <ErrorBoundary>
           <Timeline id={s.id} />
@@ -117,6 +145,7 @@ function Build(props: {
       {s.reason && (s.status === "denied" || s.status === "failed") && (
         <p className="mt-2 text-xs text-destructive">{s.reason}</p>
       )}
+      <CancelButton s={s} />
       {s.status === "failed" && !s.editOf && props.onRetry && (
         <Button size="sm" variant="secondary" className="mt-2 gap-1" onClick={() => props.onRetry!(s.prompt)}>
           <RotateCcwIcon /> Try again

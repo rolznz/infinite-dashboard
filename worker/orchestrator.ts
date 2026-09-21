@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../server/config.ts";
-import { db, getSetting, type Suggestion } from "../server/db.ts";
+import { db, getSetting, getSuggestion, type Suggestion } from "../server/db.ts";
 import { appendLog, jobLog, jobLogFile, setStatus } from "../server/suggestions.ts";
 import { readManifest, type Manifest } from "../server/widgets.ts";
 import { createBuilder, type Builder } from "./build.ts";
@@ -11,7 +11,8 @@ import { buildDir, publishEdit, publishWidget, removeBuild } from "./publish.ts"
 import { taskfuelBalance } from "./taskfuel.ts";
 import { triage } from "./triage.ts";
 
-const running = new Set<string>();
+/** Builds in flight, each with the controller that cancels it. */
+const running = new Map<string, AbortController>();
 let ticking = false;
 let pausedNotice = "";
 
@@ -46,6 +47,7 @@ async function tick() {
     if (pending) {
       setStatus(pending.id, "triaging", "Checking the idea");
       const t = await triage(pending.prompt);
+      if (getSuggestion(pending.id)?.status !== "triaging") return; // cancelled meanwhile
       if (t.accepted) setStatus(pending.id, "accepted", "Accepted! Waiting for a free builder");
       else setStatus(pending.id, "denied", t.reason, { reason: t.reason ?? "Not a good fit" });
     }
@@ -53,9 +55,9 @@ async function tick() {
     if (running.size >= config.maxBuilds) return;
     const next = db
       .prepare(
-        `SELECT * FROM suggestions WHERE status = 'accepted' ${running.size ? `AND id NOT IN (${[...running].map(() => "?").join(",")})` : ""} ORDER BY created_at LIMIT 1`,
+        `SELECT * FROM suggestions WHERE status = 'accepted' ${running.size ? `AND id NOT IN (${[...running.keys()].map(() => "?").join(",")})` : ""} ORDER BY created_at LIMIT 1`,
       )
-      .get(...running) as Suggestion | undefined;
+      .get(...running.keys()) as Suggestion | undefined;
     if (!next) return;
 
     const paused = await pauseReason();
@@ -65,14 +67,23 @@ async function tick() {
       return;
     }
     pausedNotice = "";
+    if (getSuggestion(next.id)?.status !== "accepted") return; // cancelled while we checked the balance
 
-    running.add(next.id);
-    buildSuggestion(next)
+    const controller = new AbortController();
+    running.set(next.id, controller);
+    buildSuggestion(next, controller.signal)
       .catch((e) => console.error(`[orchestrator] ${next.id} crashed`, e))
       .finally(() => running.delete(next.id));
   } finally {
     ticking = false;
   }
+}
+
+/** Stops a queued or running build. A running one fails through its normal error path, which cleans up. */
+export function cancelSuggestion(id: string) {
+  const controller = running.get(id);
+  if (controller) controller.abort();
+  else setStatus(id, "failed", "Cancelled", { reason: "You cancelled this build." });
 }
 
 async function pauseReason(): Promise<string | undefined> {
@@ -97,7 +108,7 @@ function makeWidgetId(prompt: string) {
   return `${slug}-${crypto.randomBytes(3).toString("hex")}`;
 }
 
-async function buildSuggestion(s: Suggestion) {
+async function buildSuggestion(s: Suggestion, signal: AbortSignal) {
   // An edit rebuilds a copy of the live widget under the same id; everything else starts from an empty folder.
   const live = s.edit_of ? readManifest(path.join(config.widgets, s.edit_of)) : undefined;
   if (s.edit_of && !live) {
@@ -117,6 +128,7 @@ async function buildSuggestion(s: Suggestion) {
   };
   let builder: Builder | undefined;
   const started = Date.now();
+  const deadline = started + config.buildTimeoutMs;
   const balanceBefore = config.taskfuelEnabled ? await taskfuelBalance(true) : undefined;
   jobLog(s.id, `JOB START "${s.prompt}" → widget ${widgetId}. Log file: ${jobLogFile(s.id)}`);
   if (balanceBefore !== undefined) jobLog(s.id, `TaskFuel balance before: $${balanceBefore.toFixed(4)}`);
@@ -132,7 +144,7 @@ async function buildSuggestion(s: Suggestion) {
 
     setStatus(s.id, "building", live ? "Updating your widget" : "Building your widget", { widget_id: widgetId });
     appendLog(s.id, "info", `Building ${widgetId} with ${config.piProvider}/${config.piModel}`);
-    builder = await createBuilder({ suggestionId: s.id, cwd: widgetDir });
+    builder = await createBuilder({ suggestionId: s.id, cwd: widgetDir, signal, deadline });
     await builder.run(live ? editMessage(s, live) : taskMessage(s, widgetId));
 
     setStatus(s.id, "testing", "Testing it on the dashboard");
@@ -145,6 +157,7 @@ async function buildSuggestion(s: Suggestion) {
       result = await check(builder, widgetDir, expected);
     }
     if (!result.ok) throw new Error(`Checks failed: ${result.errors[0]}`);
+    if (signal.aborted) throw new Error("cancelled");
 
     const manifestPath = path.join(widgetDir, "manifest.json");
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as Manifest;
@@ -198,6 +211,8 @@ async function check(builder: Builder, widgetDir: string, expected: Manifest) {
 /** What users see when a build fails. Details stay in the backend job log. */
 function friendlyError(e: unknown) {
   const msg = (e as Error)?.message ?? String(e);
+  if (msg === "cancelled") return "You cancelled this build.";
+  if (msg.startsWith("too many turns")) return "The build went round in circles, so we stopped it. Try a simpler version of the idea.";
   if (msg.includes("took too long")) return "The build took too long. Try a simpler version of the idea.";
   if (msg.startsWith("Checks failed")) return "The widget didn't pass our quality checks, so it wasn't published.";
   return "Something went wrong while building this one. Try again or tweak the idea.";

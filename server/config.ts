@@ -36,7 +36,10 @@ export const config = {
   llmCallsPerIpPerHour: Number(process.env.LLM_CALLS_PER_IP_PER_HOUR ?? 20),
 
   maxBuilds: Number(process.env.MAX_BUILDS ?? 2),
-  buildTimeoutMs: Number(process.env.BUILD_TIMEOUT_MIN ?? 15) * 60_000,
+  /** Wall-clock limit for a whole build job (first run + repair), so a stuck agent can't burn LLM credit. */
+  buildTimeoutMs: Number(process.env.BUILD_TIMEOUT_MIN ?? 5) * 60_000,
+  /** Max LLM turns per build job; normal builds take 5-25. */
+  maxBuildTurns: Number(process.env.MAX_BUILD_TURNS ?? 40),
   minTaskfuelBalance: Number(process.env.MIN_TASKFUEL_BALANCE ?? 1),
   maxPending: 50,
   submitsPerIpPerHour: Number(process.env.SUBMITS_PER_IP_PER_HOUR ?? 10),
