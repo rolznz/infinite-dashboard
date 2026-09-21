@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.ts";
 import { db, type WidgetRow } from "./db.ts";
-import { git, gitOk } from "./git.ts";
 
 export interface Manifest {
   id: string;
@@ -14,40 +13,11 @@ export interface Manifest {
   taskfuelUsd?: number;
 }
 
-const README = `# Infinite Dash widgets
-
-Every folder in \`widgets/\` is one widget on https://infinitedash.lol, built autonomously by an
-AI agent from a user's prompt. Each widget is a plain ES module (\`widget.js\`) plus a
-\`manifest.json\`, loaded at runtime by the dashboard with no redeploys.
-`;
-
-export async function initWidgetsRepo() {
-  const repo = config.widgetsRepo;
-  for (const dir of [config.worktrees, config.logs, config.shots, config.piAgentDir]) {
+export function initDataDirs() {
+  for (const dir of [config.widgets, config.builds, config.logs, config.shots, config.piAgentDir]) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  if (!fs.existsSync(path.join(repo, ".git"))) {
-    if (config.widgetsRemote) {
-      await git(config.dataDir, "clone", config.widgetsRemote, repo);
-      if (!(await gitOk(repo, "rev-parse", "--verify", "master"))) await seedRepo(repo, true);
-    } else {
-      fs.mkdirSync(repo, { recursive: true });
-      await git(repo, "init", "-b", "master");
-      await seedRepo(repo, false);
-    }
-  }
-  // Interrupted builds leave stale worktrees behind.
-  await gitOk(repo, "worktree", "prune");
-  syncWidgetsFromRepo();
-}
-
-async function seedRepo(repo: string, push: boolean) {
-  fs.writeFileSync(path.join(repo, "README.md"), README);
-  fs.mkdirSync(path.join(repo, "widgets"), { recursive: true });
-  fs.writeFileSync(path.join(repo, "widgets", ".gitkeep"), "");
-  await git(repo, "add", "-A");
-  await git(repo, "commit", "-m", "Initial commit");
-  if (push) await git(repo, "push", "-u", "origin", "master");
+  syncWidgetsFromDisk();
 }
 
 export function readManifest(dir: string): Manifest | undefined {
@@ -58,10 +28,9 @@ export function readManifest(dir: string): Manifest | undefined {
   }
 }
 
-/** The widget list is the list of folders on master; mirror it into SQLite. */
-export function syncWidgetsFromRepo() {
-  const dir = path.join(config.widgetsRepo, "widgets");
-  if (!fs.existsSync(dir)) return;
+/** The widget list is the list of widget folders; mirror it into SQLite. */
+function syncWidgetsFromDisk() {
+  const dir = config.widgets;
   const insert = db.prepare(
     `INSERT OR IGNORE INTO widgets (id, title, emoji, author, prompt, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
   );

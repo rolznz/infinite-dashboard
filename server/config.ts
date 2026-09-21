@@ -11,12 +11,13 @@ export const config = {
   isProd: process.env.NODE_ENV === "production",
   dataDir,
   dbPath: path.join(dataDir, "app.db"),
-  widgetsRepo: path.join(dataDir, "widgets-repo"),
-  worktrees: path.join(dataDir, "worktrees"),
+  /** Live widgets, one folder each. */
+  widgets: path.join(dataDir, "widgets"),
+  /** In-progress builds, moved into `widgets` once they pass the checks. */
+  builds: path.join(dataDir, "builds"),
   logs: path.join(dataDir, "logs"),
   shots: path.join(dataDir, "shots"),
   piAgentDir: path.join(dataDir, "pi-agent"),
-  widgetsRemote: process.env.WIDGETS_REMOTE || undefined,
 
   piProvider: process.env.PI_PROVIDER ?? "cerebras",
   piModel: process.env.PI_MODEL ?? "qwen-3.8-27b",

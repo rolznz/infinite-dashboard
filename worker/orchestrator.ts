@@ -3,12 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../server/config.ts";
 import { db, getSetting, type Suggestion } from "../server/db.ts";
-import { git } from "../server/git.ts";
 import { appendLog, jobLog, jobLogFile, setStatus } from "../server/suggestions.ts";
 import type { Manifest } from "../server/widgets.ts";
 import { createBuilder, type Builder } from "./build.ts";
 import { runChecks } from "./checks.ts";
-import { commitWorktree, mergeWidget, removeWorktree, worktreeDir } from "./merge.ts";
+import { buildDir, publishWidget, removeBuild } from "./publish.ts";
 import { taskfuelBalance } from "./taskfuel.ts";
 import { triage } from "./triage.ts";
 
@@ -27,7 +26,7 @@ async function recoverInterrupted() {
     .prepare("SELECT * FROM suggestions WHERE status IN ('triaging','building','testing')")
     .all() as unknown as Suggestion[];
   for (const s of stuck) {
-    if (s.widget_id) await removeWorktree(s.widget_id);
+    if (s.widget_id) removeBuild(s.widget_id);
     if (s.status === "triaging") setStatus(s.id, "pending", "Server restarted, back in the queue");
     else setStatus(s.id, "accepted", "Server restarted, back in the build queue", { widget_id: null });
   }
@@ -100,8 +99,7 @@ function makeWidgetId(prompt: string) {
 
 async function buildSuggestion(s: Suggestion) {
   const widgetId = makeWidgetId(s.prompt);
-  const wt = worktreeDir(widgetId);
-  const widgetDir = path.join(wt, "widgets", widgetId);
+  const widgetDir = buildDir(widgetId);
   const expected: Manifest = {
     id: widgetId,
     title: s.prompt.slice(0, 40),
@@ -118,7 +116,6 @@ async function buildSuggestion(s: Suggestion) {
   if (balanceBefore !== undefined) jobLog(s.id, `TaskFuel balance before: $${balanceBefore.toFixed(4)}`);
 
   try {
-    await git(config.widgetsRepo, "worktree", "add", wt, "-b", `widget/${widgetId}`, "master");
     fs.mkdirSync(widgetDir, { recursive: true });
     fs.writeFileSync(path.join(widgetDir, "manifest.json"), JSON.stringify(expected, null, 2) + "\n");
 
@@ -144,19 +141,18 @@ async function buildSuggestion(s: Suggestion) {
     manifest.taskfuelUsd = builder.spentUsd();
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
     jobLog(s.id, `TaskFuel spent by build tools: $${manifest.taskfuelUsd.toFixed(4)}`);
-    await commitWorktree(widgetId, manifest.title);
-    await mergeWidget(widgetId, s.id);
+    publishWidget(widgetId, s.id);
     setStatus(s.id, "merged", "Live on the dashboard!", {
       taskfuel_usd: typeof manifest.taskfuelUsd === "number" ? manifest.taskfuelUsd : null,
       llm_tokens: builder.tokens(),
       summary: builder.summary() ?? null,
     });
-    jobLog(s.id, `Widget files: ${path.join(config.widgetsRepo, "widgets", widgetId)}/`);
+    jobLog(s.id, `Widget files: ${path.join(config.widgets, widgetId)}/`);
   } catch (e) {
     const reason = friendlyError(e);
     appendLog(s.id, "error", (e as Error).message ?? String(e));
     setStatus(s.id, "failed", reason, { reason, llm_tokens: builder?.tokens() ?? null });
-    await removeWorktree(widgetId).catch(() => {});
+    removeBuild(widgetId);
   } finally {
     builder?.dispose();
     const balanceAfter = config.taskfuelEnabled ? await taskfuelBalance(true) : undefined;

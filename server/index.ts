@@ -6,12 +6,12 @@ import { config } from "./config.ts";
 import { db, getSuggestion, type WidgetRow } from "./db.ts";
 import { onlineCount, broadcast, sseHandler } from "./sse.ts";
 import { createSuggestion, listEvents, listSuggestions, suggestionDto } from "./suggestions.ts";
-import { initWidgetsRepo, listWidgets, toggleLike, widgetDto } from "./widgets.ts";
+import { initDataDirs, listWidgets, toggleLike, widgetDto } from "./widgets.ts";
 import { startOrchestrator } from "../worker/orchestrator.ts";
 import { checkModelAvailable } from "../worker/build.ts";
 import { ToolError, twitterSearch } from "../worker/tools.ts";
 
-await initWidgetsRepo();
+initDataDirs();
 
 const app = express();
 app.set("trust proxy", true);
@@ -23,7 +23,7 @@ const isLocal = (req: Request) =>
 
 const getScore = () => (db.prepare("SELECT value FROM score WHERE id = 1").get() as { value: number }).value;
 
-// ---------- widget files (no build step: served straight from the widgets repo) ----------
+// ---------- widget files (no build step: served straight from disk) ----------
 const widgetStatic = (root: string) =>
   express.static(root, {
     fallthrough: false,
@@ -32,9 +32,9 @@ const widgetStatic = (root: string) =>
       res.setHeader("Cache-Control", "no-cache");
     },
   });
-app.use("/w", widgetStatic(path.join(config.widgetsRepo, "widgets")));
+app.use("/w", widgetStatic(config.widgets));
 // Unmerged widgets for the pre-merge load test. Only reachable from this machine.
-app.use("/w-preview", (req, res, next) => (isLocal(req) ? next() : res.status(404).end()), widgetStatic(config.worktrees));
+app.use("/w-preview", (req, res, next) => (isLocal(req) ? next() : res.status(404).end()), widgetStatic(config.builds));
 
 // ---------- API ----------
 app.get("/healthz", (_req, res) => {
@@ -48,7 +48,7 @@ app.get("/api/widgets", (req, res) => {
   const widgets = listWidgets(ipHash(req)).map((w) => widgetDto(w));
   const preview = String(req.query.preview ?? "");
   if (preview && isLocal(req) && /^[a-z0-9-]+$/.test(preview)) {
-    const manifestPath = path.join(config.worktrees, preview, "widgets", preview, "manifest.json");
+    const manifestPath = path.join(config.builds, preview, "manifest.json");
     let m: { title?: string; emoji?: string; author?: string; prompt?: string } = {};
     try {
       m = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
@@ -64,7 +64,7 @@ app.get("/api/widgets", (req, res) => {
       hidden: 0,
       created_at: Date.now(),
     };
-    widgets.unshift(widgetDto(row, `/w-preview/${preview}/widgets/${preview}/`));
+    widgets.unshift(widgetDto(row, `/w-preview/${preview}/`));
   }
   res.json({ widgets });
 });

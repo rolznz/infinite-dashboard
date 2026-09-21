@@ -15,19 +15,19 @@ per widget.*
 
 - **Shell** (this repo): Vite + React + shadcn/ui frontend and an Express backend with SQLite.
   It's deployed rarely.
-- **Widgets**: a separate git repo at `data/widgets-repo` (branch `master`). Each widget is one
-  folder, `widgets/<id>/widget.js` + `manifest.json`, loaded by the browser at runtime with
+- **Widgets**: plain folders on the data volume, `data/widgets/<id>/widget.js` + `manifest.json`
+  (no git). Each one is loaded by the browser at runtime with
   dynamic `import()`. New widgets appear live over server-sent events, with no reload.
 - **Builder**: [PI](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) runs
-  in-process through its SDK (Qwen 3.8 27B on Cerebras by default), with full tools, in a dedicated git worktree
-  per widget. Paid capabilities come from dedicated tools (`worker/tools.ts`), not the raw
+  in-process through its SDK (Qwen 3.8 27B on Cerebras by default), with full tools, in its own build
+  folder per widget. Paid capabilities come from dedicated tools (`worker/tools.ts`), not the raw
   TaskFuel API: `create_image` (GPT Image 2.5) and `create_sound_effect` (ElevenLabs) at build
   time, and `sdk.tools.twitterSearch()` for widgets at runtime.
 - **Checks before merge**: file/manifest checks, `node --check`, then Playwright loads the real
   dashboard with the new widget in it (light and dark) and clicks its buttons. On failure the
   agent gets one repair attempt.
-- **Merge**: the widget branch is merged into `master` and pushed if `origin` exists. Widgets
-  only touch their own folder, so parallel builds never conflict.
+- **Publish**: the build folder is renamed into `data/widgets/`. Widgets only touch their own
+  folder, so parallel builds never conflict.
 - **Status** is owned by the orchestrator (`worker/orchestrator.ts`). Every transition is
   stored and streamed to the submitter's "Your builds" sheet as friendly steps plus a one-line
   summary. Build internals (tool calls, model output, costs) stay in the backend logs.
@@ -36,7 +36,7 @@ per widget.*
 
 ## Run locally
 
-Requirements: Node 24+, git.
+Requirements: Node 24+.
 
 ```sh
 npm install
@@ -45,7 +45,7 @@ cp .env.example .env              # then fill in CEREBRAS_API_KEY and TASKFUEL_A
 npm run dev                       # http://localhost:8080
 ```
 
-On boot the server creates `data/` (SQLite DB, widgets repo, worktrees, logs, screenshots) and
+On boot the server creates `data/` (SQLite DB, widgets, builds, logs, screenshots) and
 logs whether your provider serves `PI_MODEL`. To start completely fresh, stop the
 server and delete `data/`.
 
@@ -55,8 +55,8 @@ Production build: `npm run build && npm start`.
 
 | What | Where |
 |---|---|
-| Widget files (live) | `data/widgets-repo/widgets/<widget-id>/` (`widget.js`, `manifest.json`, `assets/`) |
-| In-progress builds | `data/worktrees/<widget-id>/` (a git worktree per build, removed after merge) |
+| Widget files (live) | `data/widgets/<widget-id>/` (`widget.js`, `manifest.json`, `assets/`) |
+| In-progress builds | `data/builds/<widget-id>/` (moved into `data/widgets/` when the checks pass, deleted on failure) |
 | Job log (readable, incl. model thinking + tool calls) | `data/logs/<suggestion-id>.log`, also streamed to the server console as `[job <id>] …` |
 | Raw PI events | `data/logs/<suggestion-id>.jsonl` |
 | Pre-merge screenshots | `data/shots/<widget-id>-{light,dark}.png` |
@@ -91,8 +91,8 @@ Runtime searches are cached for 10 minutes per query (shared by all visitors) an
 ## Layout
 
 ```
-server/        Express API, SSE, SQLite, widgets repo + git helpers
-worker/        orchestrator (queue), build (PI SDK), checks (Playwright), merge, triage (stub until M1.5)
+server/        Express API, SSE, SQLite, widget storage
+worker/        orchestrator (queue), build (PI SDK), checks (Playwright), publish, triage (stub until M1.5)
 worker/tools.ts  dedicated TaskFuel tools (build-time PI tools + runtime API for widgets)
 worker/pi/     PI system prompt
 sdk/           widget SDK types + authoring docs (both are fed to PI)
