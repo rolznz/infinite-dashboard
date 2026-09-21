@@ -29,6 +29,7 @@ export function SubmitSheet(props: {
   widgets?: Widget[];
   onViewWidget: (widgetId: string) => void;
   onEdit: (widgetId: string) => void;
+  onRetry: (prompt: string) => void;
 }) {
   const isDesktop = useIsDesktop();
   const editing = props.editOf;
@@ -157,6 +158,7 @@ export function SubmitSheet(props: {
                 widgets={props.widgets}
                 onViewWidget={props.onViewWidget}
                 onEdit={props.onEdit}
+                onRetry={props.onRetry}
               />
             </div>
           )}

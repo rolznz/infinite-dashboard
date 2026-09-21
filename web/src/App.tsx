@@ -78,7 +78,12 @@ export default function App() {
         if (!loadMine().has(s.id)) return; // only the visitor's own builds matter here
         setBuilds((cur) => mergeBuilds(cur, [s]));
         if (s.status === "merged") toast.success("Your widget is live! 🎉");
-        if (s.status === "failed" || s.status === "denied") toast.error(s.reason ?? "Your idea couldn't be built");
+        if (s.status === "failed" || s.status === "denied") {
+          // Failed new builds can be retried with an editable prompt (edits retry via the widget's Edit button).
+          const action =
+            s.status === "failed" && !s.editOf ? { label: "Try again", onClick: () => retry(s.prompt) } : undefined;
+          toast.error(s.reason ?? "Your idea couldn't be built", { action });
+        }
       }),
     ];
     return () => offs.forEach((off) => off());
@@ -129,6 +134,11 @@ export default function App() {
     setForkOf(undefined);
     setEditOf(undefined);
     setSubmitOpen(true);
+  }
+
+  function retry(prompt: string) {
+    setBuildsOpen(false);
+    openSubmit(prompt);
   }
 
   function openEdit(widgetId: string) {
@@ -194,6 +204,7 @@ export default function App() {
           widgets={widgets}
           onViewWidget={viewWidget}
           onEdit={openEdit}
+          onRetry={retry}
         />
         <ForkDialog widget={forkWidget} onOpenChange={(open) => !open && setForkWidget(undefined)} onFork={fork} />
         <BuildsSheet
@@ -204,6 +215,7 @@ export default function App() {
           highlightId={highlightBuild}
           onViewWidget={viewWidget}
           onEdit={openEdit}
+          onRetry={retry}
         />
       </ErrorBoundary>
     </div>

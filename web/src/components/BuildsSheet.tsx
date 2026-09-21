@@ -1,4 +1,4 @@
-import { ChevronDownIcon, ExternalLinkIcon, PencilIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, PencilIcon, RotateCcwIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -78,6 +78,7 @@ function Build(props: {
   onToggle: (id: string) => void;
   onViewWidget: (widgetId: string) => void;
   onEdit?: (widgetId: string) => void;
+  onRetry?: (prompt: string) => void;
 }) {
   const { s, widget } = props;
   const expanded = props.expanded === s.id;
@@ -115,6 +116,11 @@ function Build(props: {
       </button>
       {s.reason && (s.status === "denied" || s.status === "failed") && (
         <p className="mt-2 text-xs text-destructive">{s.reason}</p>
+      )}
+      {s.status === "failed" && !s.editOf && props.onRetry && (
+        <Button size="sm" variant="secondary" className="mt-2 gap-1" onClick={() => props.onRetry!(s.prompt)}>
+          <RotateCcwIcon /> Try again
+        </Button>
       )}
       {expanded && (
         <ErrorBoundary>
@@ -168,6 +174,8 @@ export function BuildList(props: {
   highlightId?: string;
   onViewWidget: (widgetId: string) => void;
   onEdit?: (widgetId: string) => void;
+  /** Reopens the submit sheet with a failed build's prompt, ready to edit. */
+  onRetry?: (prompt: string) => void;
 }) {
   const [expanded, setExpanded] = useState(props.highlightId);
 
@@ -202,6 +210,7 @@ export function BuildList(props: {
           onToggle={(id) => setExpanded((e) => (e === id ? undefined : id))}
           onViewWidget={props.onViewWidget}
           onEdit={props.onEdit}
+          onRetry={props.onRetry}
         />
       ))}
     </ul>
@@ -217,6 +226,7 @@ export function BuildsSheet(props: {
   highlightId?: string;
   onViewWidget: (widgetId: string) => void;
   onEdit: (widgetId: string) => void;
+  onRetry: (prompt: string) => void;
 }) {
   const isDesktop = useIsDesktop();
 
@@ -237,6 +247,7 @@ export function BuildsSheet(props: {
             highlightId={props.highlightId}
             onViewWidget={props.onViewWidget}
             onEdit={props.onEdit}
+            onRetry={props.onRetry}
           />
         </div>
       </SheetContent>
