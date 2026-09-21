@@ -93,7 +93,12 @@ export const WidgetCard = memo(function WidgetCard(props: {
             {w.title}
           </div>
           <div className="truncate text-[11px] leading-tight text-muted-foreground">
-            {w.author ? `by ${w.author} · ` : ""}
+            {w.author && (
+              <>
+                by <Author name={w.author} />
+                {" · "}
+              </>
+            )}
             {timeAgo(w.createdAt)}
           </div>
         </div>
@@ -113,3 +118,20 @@ export const WidgetCard = memo(function WidgetCard(props: {
     </Card>
   );
 });
+
+const X_HANDLE = /^@([A-Za-z0-9_]{1,15})$/;
+
+function Author({ name }: { name: string }) {
+  const handle = name.match(X_HANDLE)?.[1];
+  if (!handle) return <>{name}</>;
+  return (
+    <a
+      href={`https://x.com/${handle}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="hover:text-foreground hover:underline"
+    >
+      {name}
+    </a>
+  );
+}
