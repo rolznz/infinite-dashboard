@@ -108,6 +108,8 @@ export interface Builder {
   outsideWrites(): string[];
   /** The agent's final "SUMMARY: …" line (what it built), for users. */
   summary(): string | undefined;
+  /** The agent's "PROMPT: …" line after an edit: the original idea with all changes merged in. */
+  mergedPrompt(): string | undefined;
   /** TaskFuel USD spent by the build tools. */
   spentUsd(): number;
   dispose(): void;
@@ -159,6 +161,7 @@ export async function createBuilder(opts: { suggestionId: string; cwd: string })
   const rawLog = fs.createWriteStream(path.join(config.logs, `${opts.suggestionId}.jsonl`), { flags: "a" });
   let tokens = 0;
   let summary: string | undefined;
+  let mergedPrompt: string | undefined;
   const outside = new Set<string>();
   const unsubscribe = session.subscribe((event) => {
     if (event.type === "tool_execution_start" && (event.toolName === "write" || event.toolName === "edit")) {
@@ -174,7 +177,10 @@ export async function createBuilder(opts: { suggestionId: string; cwd: string })
       const content = (event.message as { content?: { type: string; text?: string }[] }).content ?? [];
       const text = content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
       const m = text.match(/SUMMARY:\s*(.+)/);
-      if (m) summary = m[1].trim().replace(/[*_`#]/g, "").replace(/^["“]|["”]$/g, "").slice(0, 280);
+      const clean = (t: string) => t.trim().replace(/[*_`#]/g, "").replace(/^["“]|["”]$/g, "");
+      if (m) summary = clean(m[1]).slice(0, 280);
+      const p = text.match(/PROMPT:\s*(.+)/);
+      if (p) mergedPrompt = clean(p[1]).replace(/\s+/g, " ");
     }
   });
 
@@ -197,6 +203,7 @@ export async function createBuilder(opts: { suggestionId: string; cwd: string })
     tokens: () => tokens,
     outsideWrites: () => [...outside],
     summary: () => summary,
+    mergedPrompt: () => mergedPrompt,
     spentUsd: buildTools.spentUsd,
     dispose() {
       unsubscribe();

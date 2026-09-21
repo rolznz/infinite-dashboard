@@ -14,17 +14,24 @@ export const suggestionDto = (s: Suggestion) => ({
   reason: s.reason,
   widgetId: s.widget_id,
   summary: s.summary,
+  editOf: s.edit_of,
   createdAt: s.created_at,
   updatedAt: s.updated_at,
 });
 
-export function createSuggestion(input: { prompt: string; author: string | null; visitor: string | null; ipHash: string }) {
+export function createSuggestion(input: {
+  prompt: string;
+  author: string | null;
+  visitor: string | null;
+  ipHash: string;
+  editOf?: string;
+}) {
   const now = Date.now();
   const id = `s_${now.toString(36)}${crypto.randomBytes(3).toString("hex")}`;
   db.prepare(
-    `INSERT INTO suggestions (id, prompt, author, status, visitor, ip_hash, created_at, updated_at)
-     VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)`,
-  ).run(id, input.prompt, input.author, input.visitor, input.ipHash, now, now);
+    `INSERT INTO suggestions (id, prompt, author, status, visitor, ip_hash, edit_of, created_at, updated_at)
+     VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+  ).run(id, input.prompt, input.author, input.visitor, input.ipHash, input.editOf ?? null, now, now);
   addEvent(id, "pending", "Submitted");
   const s = getSuggestion(id)!;
   broadcast("suggestion.updated", suggestionDto(s));

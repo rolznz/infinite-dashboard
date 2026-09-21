@@ -18,8 +18,34 @@ export function publishWidget(widgetId: string, suggestionId: string) {
     `INSERT OR REPLACE INTO widgets (id, title, emoji, author, prompt, suggestion_id, commit_sha, hidden, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
   ).run(widgetId, m?.title || widgetId, m?.emoji ?? null, m?.author ?? null, m?.prompt ?? null, suggestionId, String(Date.now()), Date.now());
+  broadcastWidget(widgetId);
+}
+
+/** Swap an edited build in for the live widget. It keeps its id, likes, owner and place; the new version reloads live. */
+export function publishEdit(widgetId: string) {
+  const dir = path.join(config.widgets, widgetId);
+  const old = path.join(config.builds, `${widgetId}.old-${Date.now()}`);
+  fs.renameSync(dir, old);
+  fs.renameSync(buildDir(widgetId), dir);
+  fs.rmSync(old, { recursive: true, force: true });
+
+  const m = readManifest(dir);
+  db.prepare("UPDATE widgets SET title = ?, emoji = ?, prompt = ?, commit_sha = ? WHERE id = ?").run(
+    m?.title || widgetId,
+    m?.emoji ?? null,
+    m?.prompt ?? null,
+    String(Date.now()),
+    widgetId,
+  );
+  broadcastWidget(widgetId);
+}
+
+function broadcastWidget(widgetId: string) {
   const row = db.prepare("SELECT * FROM widgets WHERE id = ?").get(widgetId) as unknown as WidgetRow;
-  broadcast("widget.added", widgetDto(row));
+  const { n } = db.prepare("SELECT COUNT(*) AS n FROM likes WHERE widget_id = ?").get(widgetId) as { n: number };
+  // `liked` is per viewer, so leave it out and let each client keep its own.
+  const { liked: _, ...dto } = widgetDto({ ...row, likes: n });
+  broadcast("widget.added", dto);
 }
 
 export function removeBuild(widgetId: string) {

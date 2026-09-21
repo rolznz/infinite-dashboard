@@ -64,7 +64,9 @@ app.get("/api/widgets", (req, res) => {
       hidden: 0,
       created_at: Date.now(),
     };
-    widgets.unshift(widgetDto(row, `/w-preview/${preview}/`));
+    // An edit previews in place of its live version.
+    res.json({ widgets: [widgetDto(row, `/w-preview/${preview}/`), ...widgets.filter((w) => w.id !== preview)] });
+    return;
   }
   res.json({ widgets });
 });
@@ -103,8 +105,10 @@ app.post("/api/suggestions", (req, res) => {
   const prompt = String(req.body?.prompt ?? "").trim().replace(/\s+/g, " ");
   const author = String(req.body?.author ?? "").trim().slice(0, 40) || null;
   const visitor = String(req.body?.visitor ?? "").slice(0, 64) || null;
-  if (prompt.length < 10 || prompt.length > 300) {
-    return res.status(400).json({ error: "Your idea should be between 10 and 300 characters." });
+  const editOf = String(req.body?.editOf ?? "") || undefined;
+  if (prompt.length < (editOf ? 3 : 10) || prompt.length > 300) {
+    const what = editOf ? "Your change should be between 3" : "Your idea should be between 10";
+    return res.status(400).json({ error: `${what} and 300 characters.` });
   }
   const ip = ipHash(req);
   const hourAgo = Date.now() - 3_600_000;
@@ -118,12 +122,27 @@ app.post("/api/suggestions", (req, res) => {
   if (pending.n >= config.maxPending) {
     return res.status(503).json({ error: "The build queue is full right now. Try again soon." });
   }
+  if (editOf) {
+    // Only the visitor who built a widget can edit it, one edit at a time.
+    const owner = db
+      .prepare(
+        `SELECT s.visitor FROM widgets w JOIN suggestions s ON s.id = w.suggestion_id WHERE w.id = ? AND w.hidden = 0`,
+      )
+      .get(editOf) as { visitor: string | null } | undefined;
+    if (!owner || !visitor || owner.visitor !== visitor) {
+      return res.status(403).json({ error: "You can only edit widgets you built." });
+    }
+    const busy = db
+      .prepare(`SELECT id FROM suggestions WHERE edit_of = ? AND status IN ('pending','triaging','accepted','building','testing')`)
+      .get(editOf);
+    if (busy) return res.status(409).json({ error: "This widget is already being edited. Wait for that change to finish." });
+  }
   // Forks start from a live widget's prompt; they must change it, not rebuild the same thing.
-  const live = db
+  const live = !editOf && db
     .prepare("SELECT id FROM widgets WHERE hidden = 0 AND lower(trim(prompt)) = lower(?)")
     .get(prompt);
   if (live) return res.status(409).json({ error: "That exact idea is already live! Change it a bit to make it your own." });
-  const dup = db
+  const dup = !editOf && db
     .prepare(
       `SELECT id FROM suggestions WHERE lower(prompt) = lower(?) AND created_at > ? AND status NOT IN ('failed','denied')`,
     )
@@ -132,7 +151,7 @@ app.post("/api/suggestions", (req, res) => {
 
   recent.push(Date.now());
   submits.set(ip, recent);
-  const s = createSuggestion({ prompt, author, visitor, ipHash: ip });
+  const s = createSuggestion({ prompt, author, visitor, ipHash: ip, editOf });
   res.status(201).json(suggestionDto(s));
 });
 

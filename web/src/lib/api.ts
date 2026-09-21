@@ -20,7 +20,7 @@ export const api = {
   like: (id: string) => request<{ likes: number; liked: boolean }>(`/api/widgets/${id}/like`, { method: "POST" }),
   addScore: (delta: number) =>
     request<{ value: number }>("/api/score", { method: "POST", body: JSON.stringify({ delta }) }).then((r) => r.value),
-  submit: (body: { prompt: string; author: string; visitor: string }) =>
+  submit: (body: { prompt: string; author: string; visitor: string; editOf?: string }) =>
     request<Suggestion>("/api/suggestions", { method: "POST", body: JSON.stringify(body) }),
   /** The visitor's own builds (ids are kept in their browser). */
   mySuggestions: (ids: string[]) =>

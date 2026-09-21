@@ -35,6 +35,7 @@ export default function App() {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [prefill, setPrefill] = useState<string>();
   const [forkOf, setForkOf] = useState<string>();
+  const [editOf, setEditOf] = useState<Widget>();
   const [buildsOpen, setBuildsOpen] = useState(false);
   const [highlightBuild, setHighlightBuild] = useState<string>();
   const [highlightWidget, setHighlightWidget] = useState<string>();
@@ -126,6 +127,17 @@ export default function App() {
   function openSubmit(text?: string) {
     setPrefill(text);
     setForkOf(undefined);
+    setEditOf(undefined);
+    setSubmitOpen(true);
+  }
+
+  function openEdit(widgetId: string) {
+    const w = widgets?.find((x) => x.id === widgetId);
+    if (!w) return toast.error("That widget isn't on the dashboard anymore");
+    setBuildsOpen(false);
+    setPrefill(undefined);
+    setForkOf(undefined);
+    setEditOf(w);
     setSubmitOpen(true);
   }
 
@@ -176,17 +188,22 @@ export default function App() {
           onOpenChange={setSubmitOpen}
           prefill={prefill}
           forkOf={forkOf}
+          editOf={editOf}
           onSubmitted={onSubmitted}
           builds={builds}
+          widgets={widgets}
           onViewWidget={viewWidget}
+          onEdit={openEdit}
         />
         <ForkDialog widget={forkWidget} onOpenChange={(open) => !open && setForkWidget(undefined)} onFork={fork} />
         <BuildsSheet
           open={buildsOpen}
           onOpenChange={setBuildsOpen}
           builds={builds}
+          widgets={widgets}
           highlightId={highlightBuild}
           onViewWidget={viewWidget}
+          onEdit={openEdit}
         />
       </ErrorBoundary>
     </div>

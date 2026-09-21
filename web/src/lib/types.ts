@@ -22,6 +22,8 @@ export interface Suggestion {
   reason: string | null;
   widgetId: string | null;
   summary: string | null;
+  /** Set when this build is an edit of a live widget. */
+  editOf: string | null;
   createdAt: number;
   updatedAt: number;
 }

@@ -53,7 +53,11 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 `);
 // Migrations for databases created before a column existed.
-for (const sql of ["ALTER TABLE suggestions ADD COLUMN summary TEXT"]) {
+for (const sql of [
+  "ALTER TABLE suggestions ADD COLUMN summary TEXT",
+  // Set when the suggestion is a follow-up edit of the visitor's own live widget.
+  "ALTER TABLE suggestions ADD COLUMN edit_of TEXT",
+]) {
   try {
     db.exec(sql);
   } catch {}
@@ -80,6 +84,7 @@ export interface Suggestion {
   taskfuel_usd: number | null;
   llm_tokens: number | null;
   summary: string | null;
+  edit_of: string | null;
   visitor: string | null;
   ip_hash: string | null;
   created_at: number;
