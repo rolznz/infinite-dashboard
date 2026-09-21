@@ -1,0 +1,36 @@
+export type Status = "pending" | "triaging" | "accepted" | "denied" | "building" | "testing" | "merged" | "failed";
+
+export interface Widget {
+  id: string;
+  title: string;
+  emoji: string | null;
+  author: string | null;
+  prompt: string | null;
+  createdAt: number;
+  base: string;
+  version: string;
+  likes: number;
+  liked: boolean;
+}
+
+export interface Suggestion {
+  id: string;
+  prompt: string;
+  author: string | null;
+  source: string;
+  status: Status;
+  reason: string | null;
+  widgetId: string | null;
+  summary: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SuggestionEvent {
+  id: number;
+  status: Status;
+  message: string | null;
+  at: number;
+}
+
+export const IN_PROGRESS: Status[] = ["pending", "triaging", "accepted", "building", "testing"];

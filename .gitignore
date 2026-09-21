@@ -1,0 +1,12 @@
+.env
+.env.local
+.env.*.local
+node_modules/
+data/
+dist/
+.agents/skills/
+.claude/skills/
+planning/
+e2e-results/
+data-test/
+screenshots

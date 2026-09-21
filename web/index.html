@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Infinite Dash</title>
+    <meta name="description" content="A dashboard that builds itself. Press + and an AI agent builds your widget live." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>∞</text></svg>" />
+    <script>
+      // Follow the system colour scheme (no toggle). Runs before first paint to avoid a flash.
+      (function () {
+        var m = window.matchMedia("(prefers-color-scheme: dark)");
+        function apply() {
+          document.documentElement.classList.toggle("dark", m.matches);
+          document.documentElement.style.colorScheme = m.matches ? "dark" : "light";
+        }
+        apply();
+        m.addEventListener("change", apply);
+      })();
+    </script>
+    <script src="/src/main.tsx" type="module"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
