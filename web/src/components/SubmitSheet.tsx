@@ -35,7 +35,7 @@ export function SubmitSheet(props: {
   builds: Suggestion[];
   widgets?: Widget[];
   onViewWidget: (widgetId: string) => void;
-  onEdit: (widgetId: string) => void;
+  onEdit: (widgetId: string, change?: string) => void;
   onRetry: (prompt: string) => void;
 }) {
   const isDesktop = useIsDesktop();
@@ -48,10 +48,10 @@ export function SubmitSheet(props: {
   const [sending, setSending] = useState(false);
   const [showCapabilities, setShowCapabilities] = useState(false);
 
-  useEffect(() => {
-    if (props.open && props.prefill) setDraft(props.prefill);
-  }, [props.open, props.prefill]);
   useEffect(() => setChange(""), [editing?.id]);
+  useEffect(() => {
+    if (props.open && props.prefill) (editing ? setChange : setDraft)(props.prefill);
+  }, [props.open, props.prefill, editing?.id]);
   // The draft survives reloads until the server has it.
   useEffect(() => save(DRAFT_KEY, draft), [draft]);
   useEffect(() => save(AUTHOR_KEY, author), [author]);

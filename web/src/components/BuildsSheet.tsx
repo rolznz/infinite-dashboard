@@ -11,6 +11,7 @@ import { IN_PROGRESS, type Suggestion, type SuggestionEvent, type Widget } from 
 import { useIsDesktop } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { FunBadge } from "./FunBadge";
 import { StatusBadge } from "./StatusBadge";
 
 /** Status timeline for one build. Only user-facing messages; build internals stay on the server. */
@@ -69,7 +70,13 @@ function CancelButton({ s }: { s: Suggestion }) {
 }
 
 /** A follow-up edit, shown under the build it changed. */
-function Edit(props: { s: Suggestion; highlighted: boolean; expanded: boolean; onToggle: () => void }) {
+function Edit(props: {
+  s: Suggestion;
+  highlighted: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onEdit?: (widgetId: string, change?: string) => void;
+}) {
   const { s } = props;
   const ref = useRef<HTMLLIElement>(null);
   useEffect(() => {
@@ -87,6 +94,12 @@ function Edit(props: { s: Suggestion; highlighted: boolean; expanded: boolean; o
         <p className="mt-1 pl-5.5 text-xs text-destructive">{s.reason}</p>
       )}
       <CancelButton s={s} />
+      {(s.status === "denied" || s.status === "failed") && s.editOf && props.onEdit && (
+        <Button size="sm" variant="secondary" className="mt-2 gap-1" onClick={() => props.onEdit!(s.editOf!, s.prompt)}>
+          {s.status === "denied" ? <PencilIcon /> : <RotateCcwIcon />}
+          {s.status === "denied" ? "Edit change" : "Try again"}
+        </Button>
+      )}
       {props.expanded && (
         <ErrorBoundary>
           <Timeline id={s.id} />
@@ -105,7 +118,7 @@ function Build(props: {
   expanded?: string;
   onToggle: (id: string) => void;
   onViewWidget: (widgetId: string) => void;
-  onEdit?: (widgetId: string) => void;
+  onEdit?: (widgetId: string, change?: string) => void;
   onRetry?: (prompt: string) => void;
 }) {
   const { s, widget } = props;
@@ -130,6 +143,7 @@ function Build(props: {
       <button type="button" onClick={() => props.onToggle(s.id)} className="flex w-full flex-col gap-2 text-left">
         <div className="flex items-center gap-2">
           <StatusBadge status={s.status} />
+          {s.fun !== null && <FunBadge fun={s.fun} />}
           {widget && (
             <span className="min-w-0 truncate text-sm font-medium">
               {widget.emoji ?? "✨"} {widget.title}
@@ -146,9 +160,10 @@ function Build(props: {
         <p className="mt-2 text-xs text-destructive">{s.reason}</p>
       )}
       <CancelButton s={s} />
-      {s.status === "failed" && !s.editOf && props.onRetry && (
+      {(s.status === "failed" || s.status === "denied") && !s.editOf && props.onRetry && (
         <Button size="sm" variant="secondary" className="mt-2 gap-1" onClick={() => props.onRetry!(s.prompt)}>
-          <RotateCcwIcon /> Try again
+          {s.status === "denied" ? <PencilIcon /> : <RotateCcwIcon />}
+          {s.status === "denied" ? "Edit idea" : "Try again"}
         </Button>
       )}
       {expanded && (
@@ -165,6 +180,7 @@ function Build(props: {
               highlighted={props.highlightId === e.id}
               expanded={props.expanded === e.id}
               onToggle={() => props.onToggle(e.id)}
+              onEdit={props.onEdit}
             />
           ))}
         </ul>
@@ -202,8 +218,8 @@ export function BuildList(props: {
   widgets?: Widget[];
   highlightId?: string;
   onViewWidget: (widgetId: string) => void;
-  onEdit?: (widgetId: string) => void;
-  /** Reopens the submit sheet with a failed build's prompt, ready to edit. */
+  onEdit?: (widgetId: string, change?: string) => void;
+  /** Reopens the submit sheet with a failed or denied build's prompt, ready to edit. */
   onRetry?: (prompt: string) => void;
 }) {
   const [expanded, setExpanded] = useState(props.highlightId);
@@ -254,7 +270,7 @@ export function BuildsSheet(props: {
   widgets?: Widget[];
   highlightId?: string;
   onViewWidget: (widgetId: string) => void;
-  onEdit: (widgetId: string) => void;
+  onEdit: (widgetId: string, change?: string) => void;
   onRetry: (prompt: string) => void;
 }) {
   const isDesktop = useIsDesktop();

@@ -16,3 +16,6 @@ export const EXAMPLES = [
   "A spinning 3D donut made with Three.js that you can drag around",
   "A fortune cookie that cracks open with a random prophecy",
 ];
+
+/** Jev's fun score is 0-4; people read x/10 more easily. */
+export const funOutOf10 = (fun: number) => (fun * 2.5).toFixed(1);

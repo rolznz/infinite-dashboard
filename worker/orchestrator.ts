@@ -9,12 +9,14 @@ import { createBuilder, type Builder } from "./build.ts";
 import { runChecks } from "./checks.ts";
 import { buildDir, publishEdit, publishWidget, removeBuild } from "./publish.ts";
 import { taskfuelBalance } from "./taskfuel.ts";
-import { triage } from "./triage.ts";
+import { triage, type EditContext } from "./triage.ts";
 
 /** Builds in flight, each with the controller that cancels it. */
 const running = new Map<string, AbortController>();
 let ticking = false;
 let pausedNotice = "";
+/** While TypeSafe is failing, wait before triaging again. */
+let triageRetryAt = 0;
 
 export function startOrchestrator() {
   recoverInterrupted().catch((e) => console.error("[orchestrator] recovery failed", e));
@@ -43,13 +45,25 @@ async function tick() {
   ticking = true;
   try {
     // Triage is quick, so do it inline, one at a time.
-    const pending = oldest("pending");
+    const pending = Date.now() >= triageRetryAt ? oldest("pending") : undefined;
     if (pending) {
-      setStatus(pending.id, "triaging", "Checking the idea");
-      const t = await triage(pending.prompt);
+      setStatus(pending.id, "triaging", "Jev is checking the idea");
+      let t: Awaited<ReturnType<typeof triage>>;
+      try {
+        t = await triage(pending.prompt, editContext(pending));
+      } catch (e) {
+        // Never build an unchecked idea: back in the queue, retried in a minute.
+        console.error(`[orchestrator] triage failed for ${pending.id}`, e);
+        triageRetryAt = Date.now() + 60_000;
+        if (getSuggestion(pending.id)?.status === "triaging") setStatus(pending.id, "pending", "Couldn't check the idea yet, retrying soon");
+        return;
+      }
       if (getSuggestion(pending.id)?.status !== "triaging") return; // cancelled meanwhile
-      if (t.accepted) setStatus(pending.id, "accepted", "Accepted! Waiting for a free builder");
-      else setStatus(pending.id, "denied", t.reason, { reason: t.reason ?? "Not a good fit" });
+      if (t.scores) jobLog(pending.id, `TRIAGE ${JSON.stringify(t.scores)}`);
+      const fields = { fun: t.fun ?? null, jev: t.scores ? JSON.stringify(t.scores) : null };
+      const funNote = t.fun !== undefined ? ` Jev rates it ${(t.fun * 2.5).toFixed(1)}/10 for fun.` : "";
+      if (t.accepted) setStatus(pending.id, "accepted", `Accepted!${funNote} Waiting for a free builder`, fields);
+      else setStatus(pending.id, "denied", t.reason, { ...fields, reason: t.reason ?? "Not a good fit" });
     }
 
     if (running.size >= config.maxBuilds) return;
@@ -84,6 +98,18 @@ export function cancelSuggestion(id: string) {
   const controller = running.get(id);
   if (controller) controller.abort();
   else setStatus(id, "failed", "Cancelled", { reason: "You cancelled this build." });
+}
+
+/** For an edit: the widget's original idea and the changes already live on it. */
+function editContext(s: Suggestion): EditContext | undefined {
+  if (!s.edit_of) return undefined;
+  const original = db
+    .prepare("SELECT COALESCE(s.prompt, w.prompt) AS prompt FROM widgets w LEFT JOIN suggestions s ON s.id = w.suggestion_id WHERE w.id = ?")
+    .get(s.edit_of) as { prompt: string | null } | undefined;
+  const changes = db
+    .prepare("SELECT prompt FROM suggestions WHERE edit_of = ? AND status = 'merged' ORDER BY created_at")
+    .all(s.edit_of) as { prompt: string }[];
+  return { originalIdea: original?.prompt ?? "", previousChanges: changes.map((c) => c.prompt) };
 }
 
 async function pauseReason(): Promise<string | undefined> {

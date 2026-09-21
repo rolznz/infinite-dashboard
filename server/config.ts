@@ -4,6 +4,8 @@ const root = path.resolve(import.meta.dirname, "..");
 const dataDir = path.resolve(root, process.env.DATA_DIR ?? "data");
 const taskfuelApiKey = process.env.TASKFUEL_API_KEY || undefined;
 delete process.env.TASKFUEL_API_KEY;
+const typesafeApiKey = process.env.TYPESAFE_API_KEY || undefined;
+delete process.env.TYPESAFE_API_KEY;
 
 export const config = {
   root,
@@ -36,6 +38,9 @@ export const config = {
   llmCallsPerIpPerHour: Number(process.env.LLM_CALLS_PER_IP_PER_HOUR ?? 20),
   /** Paid text-to-speech calls (sdk.tools.speak) per visitor IP per hour (cached audio is free). */
   speakCallsPerIpPerHour: Number(process.env.SPEAK_CALLS_PER_IP_PER_HOUR ?? 20),
+
+  /** Jev (TypeSafe) judges each idea before it is built. Without a key, every idea is accepted. */
+  typesafeApiKey,
 
   maxBuilds: Number(process.env.MAX_BUILDS ?? 2),
   /** Wall-clock limit for a whole build job (first run + repair), so a stuck agent can't burn LLM credit. */

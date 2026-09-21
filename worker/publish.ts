@@ -3,7 +3,7 @@ import path from "node:path";
 import { config } from "../server/config.ts";
 import { db } from "../server/db.ts";
 import { broadcast } from "../server/sse.ts";
-import { readManifest, widgetDto } from "../server/widgets.ts";
+import { FUN_SQL, readManifest, widgetDto } from "../server/widgets.ts";
 import type { WidgetRow } from "../server/db.ts";
 
 export const buildDir = (widgetId: string) => path.join(config.builds, widgetId);
@@ -41,7 +41,9 @@ export function publishEdit(widgetId: string) {
 }
 
 function broadcastWidget(widgetId: string) {
-  const row = db.prepare("SELECT * FROM widgets WHERE id = ?").get(widgetId) as unknown as WidgetRow;
+  const row = db.prepare(`SELECT w.*, ${FUN_SQL} FROM widgets w WHERE w.id = ?`).get(widgetId) as unknown as WidgetRow & {
+    fun: number | null;
+  };
   const { n } = db.prepare("SELECT COUNT(*) AS n FROM likes WHERE widget_id = ?").get(widgetId) as { n: number };
   // `liked` is per viewer, so leave it out and let each client keep its own.
   const { liked: _, ...dto } = widgetDto({ ...row, likes: n });

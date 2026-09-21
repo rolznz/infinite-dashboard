@@ -57,6 +57,9 @@ for (const sql of [
   "ALTER TABLE suggestions ADD COLUMN summary TEXT",
   // Set when the suggestion is a follow-up edit of the visitor's own live widget.
   "ALTER TABLE suggestions ADD COLUMN edit_of TEXT",
+  // Jev's triage: the fun rating (0-4, shown in the UI) and all raw judgments as JSON (for tuning).
+  "ALTER TABLE suggestions ADD COLUMN fun REAL",
+  "ALTER TABLE suggestions ADD COLUMN jev TEXT",
 ]) {
   try {
     db.exec(sql);
@@ -85,6 +88,8 @@ export interface Suggestion {
   llm_tokens: number | null;
   summary: string | null;
   edit_of: string | null;
+  fun: number | null;
+  jev: string | null;
   visitor: string | null;
   ip_hash: string | null;
   created_at: number;

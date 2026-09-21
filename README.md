@@ -41,7 +41,7 @@ Requirements: Node 24+.
 ```sh
 npm install
 npx playwright install chromium   # headless browser for the pre-merge load test
-cp .env.example .env              # then fill in CEREBRAS_API_KEY and TASKFUEL_API_KEY
+cp .env.example .env              # then fill in CEREBRAS_API_KEY, TASKFUEL_API_KEY and TYPESAFE_API_KEY
 npm run dev                       # http://localhost:8080
 ```
 
@@ -72,6 +72,13 @@ npm run e2e -- "A fortune cookie that cracks open with a random prophecy"
 PORT=8090 DATA_DIR=/tmp/idash-test TASKFUEL_ENABLED=0 npx tsx --env-file-if-exists=.env server/index.ts
 E2E_URL=http://localhost:8090 npm run e2e -- "<prompt>"
 ```
+
+### Triage (Jev)
+
+Before an idea is queued, `worker/triage.ts` asks TypeSafe's Jev model (`TYPESAFE_API_KEY`, server
+only) for a fun score, a feasibility score and six safety flags in one request. Unsafe, too complex
+or dull ideas are denied; the fun rating is shown on builds and live widgets. Without a key every
+idea is accepted. Raw judgments go to the job log (`TRIAGE {...}`) for tuning the thresholds.
 
 ### TaskFuel
 

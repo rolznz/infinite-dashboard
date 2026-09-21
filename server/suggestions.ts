@@ -15,6 +15,7 @@ export const suggestionDto = (s: Suggestion) => ({
   widgetId: s.widget_id,
   summary: s.summary,
   editOf: s.edit_of,
+  fun: s.fun,
   createdAt: s.created_at,
   updatedAt: s.updated_at,
 });
@@ -51,7 +52,7 @@ export function setStatus(
   id: string,
   status: Status,
   message?: string,
-  fields: Partial<Pick<Suggestion, "reason" | "widget_id" | "taskfuel_usd" | "llm_tokens" | "summary">> = {},
+  fields: Partial<Pick<Suggestion, "reason" | "widget_id" | "taskfuel_usd" | "llm_tokens" | "summary" | "fun" | "jev">> = {},
 ) {
   const sets = ["status = ?", "updated_at = ?"];
   const values: (string | number | null)[] = [status, Date.now()];

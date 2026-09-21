@@ -11,6 +11,8 @@ export interface Widget {
   version: string;
   likes: number;
   liked: boolean;
+  /** Jev's fun rating of the original idea, 0-4. */
+  fun: number | null;
 }
 
 export interface Suggestion {
@@ -24,6 +26,8 @@ export interface Suggestion {
   summary: string | null;
   /** Set when this build is an edit of a live widget. */
   editOf: string | null;
+  /** Jev's fun rating, 0-4 (new widgets only, once triaged). */
+  fun: number | null;
   createdAt: number;
   updatedAt: number;
 }

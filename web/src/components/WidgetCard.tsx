@@ -6,6 +6,7 @@ import { timeAgo } from "@/lib/format";
 import { createSdk } from "@/lib/sdk";
 import type { Widget } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { FunBadge } from "./FunBadge";
 
 type Mount = (root: HTMLElement, sdk: ReturnType<typeof createSdk>) => unknown;
 
@@ -102,6 +103,7 @@ export const WidgetCard = memo(function WidgetCard(props: {
             {timeAgo(w.createdAt)}
           </div>
         </div>
+        {w.fun !== null && <FunBadge fun={w.fun} />}
         <Button
           variant="ghost"
           size="sm"

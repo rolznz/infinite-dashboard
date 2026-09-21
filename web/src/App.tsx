@@ -39,6 +39,9 @@ export default function App() {
   const [buildsOpen, setBuildsOpen] = useState(false);
   const [highlightBuild, setHighlightBuild] = useState<string>();
   const [highlightWidget, setHighlightWidget] = useState<string>();
+  // Toast actions outlive the render that made them, so openEdit reads the latest widgets from here.
+  const widgetsRef = useRef(widgets);
+  widgetsRef.current = widgets;
 
   // Shared links (/?w=<id>) jump to that widget once the dashboard has loaded.
   const sharedWidget = useRef(new URLSearchParams(location.search).get("w"));
@@ -79,9 +82,12 @@ export default function App() {
         setBuilds((cur) => mergeBuilds(cur, [s]));
         if (s.status === "merged") toast.success("Your widget is live! 🎉");
         if (s.status === "failed" || s.status === "denied") {
-          // Failed new builds can be retried with an editable prompt (edits retry via the widget's Edit button).
-          const action =
-            s.status === "failed" && !s.editOf ? { label: "Try again", onClick: () => retry(s.prompt) } : undefined;
+          // Reopen the form with the prompt, ready to improve and resubmit.
+          const label = s.status === "denied" ? (s.editOf ? "Edit change" : "Edit idea") : "Try again";
+          const action = {
+            label,
+            onClick: () => (s.editOf ? openEdit(s.editOf, s.prompt) : retry(s.prompt)),
+          };
           toast.error(s.reason ?? "Your idea couldn't be built", { action });
         }
       }),
@@ -141,11 +147,12 @@ export default function App() {
     openSubmit(prompt);
   }
 
-  function openEdit(widgetId: string) {
-    const w = widgets?.find((x) => x.id === widgetId);
+  /** Opens the change form for one of the visitor's live widgets, optionally prefilled (e.g. a denied change). */
+  function openEdit(widgetId: string, change?: string) {
+    const w = widgetsRef.current?.find((x) => x.id === widgetId);
     if (!w) return toast.error("That widget isn't on the dashboard anymore");
     setBuildsOpen(false);
-    setPrefill(undefined);
+    setPrefill(change);
     setForkOf(undefined);
     setEditOf(w);
     setSubmitOpen(true);

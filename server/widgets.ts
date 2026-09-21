@@ -41,7 +41,10 @@ function syncWidgetsFromDisk() {
   }
 }
 
-export type WidgetWithLikes = WidgetRow & { likes: number; liked: number };
+export type WidgetWithLikes = WidgetRow & { likes: number; liked: number; fun: number | null };
+
+/** Jev's fun rating of the idea that created the widget. */
+export const FUN_SQL = "(SELECT s.fun FROM suggestions s WHERE s.id = w.suggestion_id) AS fun";
 
 /** Most liked first, then newest. */
 export function listWidgets(ipHash = ""): WidgetWithLikes[] {
@@ -49,7 +52,8 @@ export function listWidgets(ipHash = ""): WidgetWithLikes[] {
     .prepare(
       `SELECT w.*,
          (SELECT COUNT(*) FROM likes l WHERE l.widget_id = w.id) AS likes,
-         EXISTS (SELECT 1 FROM likes l WHERE l.widget_id = w.id AND l.ip_hash = ?) AS liked
+         EXISTS (SELECT 1 FROM likes l WHERE l.widget_id = w.id AND l.ip_hash = ?) AS liked,
+         ${FUN_SQL}
        FROM widgets w WHERE w.hidden = 0
        ORDER BY likes DESC, w.created_at DESC`,
     )
@@ -64,7 +68,7 @@ export function toggleLike(widgetId: string, ipHash: string) {
   return { likes: n, liked: !exists };
 }
 
-export const widgetDto = (w: WidgetRow & { likes?: number; liked?: number }, base = `/w/${w.id}/`) => ({
+export const widgetDto = (w: WidgetRow & { likes?: number; liked?: number; fun?: number | null }, base = `/w/${w.id}/`) => ({
   id: w.id,
   title: w.title,
   emoji: w.emoji,
@@ -75,4 +79,5 @@ export const widgetDto = (w: WidgetRow & { likes?: number; liked?: number }, bas
   version: w.commit_sha ?? "0",
   likes: w.likes ?? 0,
   liked: !!w.liked,
+  fun: w.fun ?? null,
 });
