@@ -184,12 +184,13 @@ async function buildSuggestion(s: Suggestion) {
 async function check(builder: Builder, widgetDir: string, expected: Manifest) {
   const outside = builder.outsideWrites();
   const result = await runChecks(widgetDir, expected);
-  if (outside.length) {
+  // Only a hint for why the checks failed (usually widget.js written to a mistyped absolute path).
+  // A stray scratch file on its own must not fail a working widget: the agent can't un-write it.
+  if (outside.length && !result.ok) {
     result.errors.unshift(
       `You wrote to files outside your widget folder, so they are ignored: ${outside.join(", ")}. ` +
         `Write widget.js in the current directory using a relative path.`,
     );
-    result.ok = false;
   }
   return result;
 }
