@@ -16,6 +16,12 @@ import { useIsDesktop } from "@/lib/useMediaQuery";
 const DRAFT_KEY = "infinitedash:draft";
 const AUTHOR_KEY = "infinitedash:author";
 
+const POWERED_BY = [
+  { name: "Cerebras", href: "https://www.cerebras.ai", tagline: "ultra-fast LLM" },
+  { name: "Jev by TypeSafe", href: "https://typesafe.ai", tagline: "ultra-fast classifier" },
+  { name: "TaskFuel", href: "https://taskfuel.ai", tagline: "2000+ tools for your agent" },
+];
+
 export function SubmitSheet(props: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -163,6 +169,22 @@ export function SubmitSheet(props: {
               </Button>
             </div>
           )}
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+            <div className="font-medium">Powered by</div>
+            {POWERED_BY.map((p) => (
+              <div key={p.name}>
+                <a
+                  href={p.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
+                >
+                  {p.name}
+                </a>{" "}
+                · {p.tagline}
+              </div>
+            ))}
+          </div>
           {!editing && props.builds.length > 0 && (
             <div className="flex flex-col gap-2">
               <div className="text-xs font-medium text-muted-foreground">Your builds</div>
