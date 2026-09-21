@@ -34,6 +34,8 @@ export const config = {
   llmModel: process.env.LLM_MODEL ?? "google/gemini-3.5-flash-lite",
   /** Paid LLM calls per visitor IP per hour (cached answers are free). */
   llmCallsPerIpPerHour: Number(process.env.LLM_CALLS_PER_IP_PER_HOUR ?? 20),
+  /** Paid text-to-speech calls (sdk.tools.speak) per visitor IP per hour (cached audio is free). */
+  speakCallsPerIpPerHour: Number(process.env.SPEAK_CALLS_PER_IP_PER_HOUR ?? 20),
 
   maxBuilds: Number(process.env.MAX_BUILDS ?? 2),
   /** Wall-clock limit for a whole build job (first run + repair), so a stuck agent can't burn LLM credit. */

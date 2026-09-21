@@ -66,6 +66,25 @@ export function createSdk(w: Widget) {
         if (!res.ok) throw new Error(json.error ?? `AI request failed (${res.status})`);
         return json.text as string;
       },
+      async newsSearch(query: string) {
+        const res = await fetch(`/api/tools/news-search?q=${encodeURIComponent(String(query))}`);
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error ?? `News search failed (${res.status})`);
+        return json.articles;
+      },
+      /** Resolves to a blob: URL of an MP3, e.g. new Audio(url).play(). */
+      async speak(input: { text: string; voice?: string }) {
+        const res = await fetch("/api/tools/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: input?.text, voice: input?.voice }),
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(json.error ?? `Speech failed (${res.status})`);
+        }
+        return URL.createObjectURL(await res.blob());
+      },
     },
   };
 }

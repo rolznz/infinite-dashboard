@@ -52,7 +52,15 @@ scroll or overflow, and must not assume a fixed width.
     it when the visitor asks (e.g. clicks a button), never on load or on a timer. Show a loading
     state, catch errors with a friendly message, and set the reply with `textContent`. Put the
     data it needs into `prompt` (e.g. the text of a few tweets from `twitterSearch`).
-11. No `eval`, no `new Function`, no `document.cookie`, no `window.top` / `parent`, no alerts or
+11. **Live news.** `sdk.tools.newsSearch("space launch")` resolves to up to 10 Google News articles
+    `{ title, url, snippet, source, date, imageUrl }` (`date` is relative, e.g. "3 hours ago").
+    Same rules as `twitterSearch`: loading state, catch errors, at most once per minute, `textContent`.
+12. **AI voice.** `sdk.tools.speak({ text, voice })` resolves to an MP3 URL: `new Audio(url).play()`.
+    Up to 500 characters; tags like `[laugh]`, `[pause]` and `<whisper>text</whisper>` work.
+    Voices: `eve` (energetic, default), `ara` (warm), `rex` (confident), `sal` (smooth), `leo`
+    (authoritative). Only call it from a click, show a loading state and catch errors.
+    Fixed lines that never change (a greeting, a catchphrase) are better as `create_sound_effect`.
+13. No `eval`, no `new Function`, no `document.cookie`, no `window.top` / `parent`, no alerts or
     prompts, no popups, no auto-playing sound, and nothing that collects personal data.
 
 ## Example 1: a lamp that remembers whether it's on

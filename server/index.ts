@@ -9,7 +9,7 @@ import { createSuggestion, listEvents, listSuggestions, suggestionDto } from "./
 import { initDataDirs, listWidgets, toggleLike, widgetDto } from "./widgets.ts";
 import { cancelSuggestion, startOrchestrator } from "../worker/orchestrator.ts";
 import { checkModelAvailable } from "../worker/build.ts";
-import { llmComplete, ToolError, twitterSearch } from "../worker/tools.ts";
+import { llmComplete, newsSearch, speak, ToolError, twitterSearch } from "../worker/tools.ts";
 
 initDataDirs();
 
@@ -196,6 +196,24 @@ app.post("/api/tools/llm", async (req, res) => {
   } catch (e) {
     const status = e instanceof ToolError ? e.status : 502;
     res.status(status).json({ error: e instanceof ToolError ? e.message : "The AI failed, try again later" });
+  }
+});
+
+app.get("/api/tools/news-search", async (req, res) => {
+  try {
+    res.json({ articles: await newsSearch(String(req.query.q ?? "")) });
+  } catch (e) {
+    const status = e instanceof ToolError ? e.status : 502;
+    res.status(status).json({ error: e instanceof ToolError ? e.message : "News search failed, try again later" });
+  }
+});
+
+app.post("/api/tools/speak", async (req, res) => {
+  try {
+    res.type("audio/mpeg").send(await speak(req.body ?? {}, clientIp(req)));
+  } catch (e) {
+    const status = e instanceof ToolError ? e.status : 502;
+    res.status(status).json({ error: e instanceof ToolError ? e.message : "Speech failed, try again later" });
   }
 });
 

@@ -42,6 +42,18 @@ export interface SDK {
      * same cached answer for 10 minutes. Rejects when it fails or is rate limited, so always catch.
      */
     llm(input: { system?: string; prompt: string }): Promise<string>;
+    /**
+     * Search Google News (up to 10 recent articles). Rejects when the search fails or is rate
+     * limited, so always catch.
+     */
+    newsSearch(query: string): Promise<NewsArticle[]>;
+    /**
+     * Read text aloud with an AI voice. Resolves to a URL of an MP3: new Audio(url).play().
+     * `text` is up to 500 characters and may include tags like [laugh], [pause] or
+     * <whisper>text</whisper>. Voices: "eve" (energetic, default), "ara" (warm), "rex" (confident),
+     * "sal" (smooth), "leo" (authoritative). Rejects when it fails or is rate limited, so always catch.
+     */
+    speak(input: { text: string; voice?: "eve" | "ara" | "rex" | "sal" | "leo" }): Promise<string>;
   };
 }
 
@@ -57,4 +69,17 @@ export interface Tweet {
   likes: number;
   retweets: number;
   replies: number;
+}
+
+export interface NewsArticle {
+  title: string;
+  /** Link to the article */
+  url: string;
+  snippet: string;
+  /** Publisher, e.g. "Bloomberg.com" */
+  source: string;
+  /** Relative age, e.g. "3 hours ago" */
+  date: string;
+  /** Small thumbnail URL, may be empty */
+  imageUrl: string;
 }

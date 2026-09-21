@@ -14,6 +14,8 @@ const IMAGE_QUALITY = "high"; // $0.05 per image (medium is $0.01)
 const SOUND_URL = "https://blockrun.ai/api/v1/audio/sound-effects"; // $0.0535 flat
 const TWEET_SEARCH_URL = "https://x402.ottoai.services/tweet-search"; // $0.005 per search
 const LLM_URL = "https://blockrun.ai/api/v1/chat/completions"; // ~$0.002 per short call on a small model
+const NEWS_SEARCH_URL = "https://mpp.orthogonal.com/serper/news"; // $0.002 per search (Google News)
+const SPEAK_URL = "https://grok.mpp.paywithlocus.com/grok/tts"; // ~$0.0015 per sentence, scales with length
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }], details: {} });
 
@@ -210,6 +212,16 @@ function takePaidCall() {
   return true;
 }
 
+/** Counts one paid call against a per-IP hourly cap (for tools anyone can call with arbitrary input). */
+function takeIpCall(calls: Map<string, number[]>, ip: string, limit: number) {
+  const hourAgo = Date.now() - 3_600_000;
+  const mine = (calls.get(ip) ?? []).filter((t) => t > hourAgo);
+  if (mine.length >= limit) return false;
+  mine.push(Date.now());
+  calls.set(ip, mine);
+  return true;
+}
+
 /** Every visitor shares one cached result per query, so a popular widget costs one search per 10 minutes. */
 export function twitterSearch(rawQuery: string): Promise<Tweet[]> {
   const query = rawQuery.trim().replace(/\s+/g, " ");
@@ -274,14 +286,10 @@ export function llmComplete(input: { system?: unknown; prompt?: unknown }, ip: s
   const hit = llmCache.get(key);
   if (hit && Date.now() - hit.at < LLM_CACHE_MS) return hit.text;
 
-  const hourAgo = Date.now() - 3_600_000;
-  const mine = (llmCallsByIp.get(ip) ?? []).filter((t) => t > hourAgo);
-  if (mine.length >= config.llmCallsPerIpPerHour || !takePaidCall()) {
+  if (!takeIpCall(llmCallsByIp, ip, config.llmCallsPerIpPerHour) || !takePaidCall()) {
     if (hit) return hit.text;
     throw new ToolError(429, "The AI needs a breather, try again soon");
   }
-  mine.push(Date.now());
-  llmCallsByIp.set(ip, mine);
 
   const messages = [
     { role: "system", content: LLM_GUARDRAIL },
@@ -308,4 +316,105 @@ export function llmComplete(input: { system?: unknown; prompt?: unknown }, ip: s
     if (llmCache.get(key)?.text === text) llmCache.delete(key);
   });
   return text;
+}
+
+export interface NewsArticle {
+  title: string;
+  url: string;
+  snippet: string;
+  /** Publisher name, e.g. "Bloomberg.com" */
+  source: string;
+  /** Relative age as Google shows it, e.g. "3 hours ago" */
+  date: string;
+  /** Small thumbnail, may be empty */
+  imageUrl: string;
+}
+
+const NEWS_CACHE_MS = 10 * 60_000;
+const newsCache = new Map<string, { at: number; articles: Promise<NewsArticle[]> }>();
+
+/** Google News search, newest-ish first. Shared 10-minute cache per query, like twitterSearch. */
+export function newsSearch(rawQuery: string): Promise<NewsArticle[]> {
+  const query = rawQuery.trim().replace(/\s+/g, " ");
+  if (!query || query.length > 200) throw new ToolError(400, "query must be 1-200 characters");
+  if (!config.taskfuelEnabled) throw new ToolError(503, "News search is not available right now");
+  const key = query.toLowerCase();
+  const hit = newsCache.get(key);
+  if (hit && Date.now() - hit.at < NEWS_CACHE_MS) return hit.articles;
+
+  if (!takePaidCall()) {
+    if (hit) return hit.articles; // stale is better than nothing
+    throw new ToolError(429, "Too many searches right now, try again soon");
+  }
+
+  const articles = taskfuelCall({ url: NEWS_SEARCH_URL, method: "POST", body: { q: query, num: 10 }, maxAmountUsd: 0.01 }).then(
+    (r) => {
+      const j = r.json<{ news?: Record<string, unknown>[] }>();
+      console.log(`[tools] news-search "${query}" cost $${r.costUsd} → ${j.news?.length ?? 0} articles`);
+      return (j.news ?? []).slice(0, 10).map((a) => ({
+        title: String(a.title ?? ""),
+        url: String(a.link ?? ""),
+        snippet: String(a.snippet ?? ""),
+        source: String(a.source ?? ""),
+        date: String(a.date ?? ""),
+        imageUrl: String(a.imageUrl ?? ""),
+      }));
+    },
+  );
+  newsCache.set(key, { at: Date.now(), articles });
+  // Don't cache failures.
+  articles.catch((e) => {
+    console.warn(`[tools] news-search "${query}" failed: ${e.message}`);
+    if (newsCache.get(key)?.articles === articles) newsCache.delete(key);
+  });
+  return articles;
+}
+
+export const SPEAK_VOICES = ["eve", "ara", "rex", "sal", "leo"] as const;
+const SPEAK_MAX_CHARS = 500;
+const SPEAK_CACHE_MS = 10 * 60_000;
+const SPEAK_CACHE_MAX = 100; // entries; a 500-character clip is ~0.5 MB
+const speakCache = new Map<string, { at: number; audio: Promise<Buffer> }>();
+const speakCallsByIp = new Map<string, number[]>();
+
+/** Text to speech (Grok) as MP3 bytes. Identical text + voice share one cached clip for 10 minutes. */
+export function speak(input: { text?: unknown; voice?: unknown }, ip: string): Promise<Buffer> {
+  const text = typeof input.text === "string" ? input.text.trim() : "";
+  if (!text || text.length > SPEAK_MAX_CHARS) throw new ToolError(400, `text must be 1-${SPEAK_MAX_CHARS} characters`);
+  const voice = input.voice === undefined ? "eve" : String(input.voice).toLowerCase();
+  if (!(SPEAK_VOICES as readonly string[]).includes(voice)) throw new ToolError(400, `voice must be one of: ${SPEAK_VOICES.join(", ")}`);
+  if (!config.taskfuelEnabled) throw new ToolError(503, "Speech is not available right now");
+  const key = crypto.createHash("sha256").update(JSON.stringify([voice, text])).digest("hex");
+  const hit = speakCache.get(key);
+  if (hit && Date.now() - hit.at < SPEAK_CACHE_MS) return hit.audio;
+
+  if (!takeIpCall(speakCallsByIp, ip, config.speakCallsPerIpPerHour) || !takePaidCall()) {
+    if (hit) return hit.audio;
+    throw new ToolError(429, "The voice needs a breather, try again soon");
+  }
+
+  const audio = taskfuelCall({
+    url: SPEAK_URL,
+    method: "POST",
+    body: { text, voice_id: voice, language: "auto" },
+    maxAmountUsd: 0.02,
+    timeoutMs: 60_000,
+  }).then((r) => {
+    const j = r.json<{ data?: { data?: string } }>();
+    const mp3 = Buffer.from(j.data?.data ?? "", "base64");
+    console.log(`[tools] speak ${voice} ${text.length} chars cost $${r.costUsd} → ${kb(mp3.length)}`);
+    if (!mp3.length) throw new Error("empty audio");
+    return mp3;
+  });
+  for (const [k, v] of speakCache) {
+    if (speakCache.size < SPEAK_CACHE_MAX && Date.now() - v.at < SPEAK_CACHE_MS) break;
+    speakCache.delete(k); // oldest first (Map keeps insertion order)
+  }
+  speakCache.set(key, { at: Date.now(), audio });
+  // Don't cache failures.
+  audio.catch((e) => {
+    console.warn(`[tools] speak failed: ${e.message}`);
+    if (speakCache.get(key)?.audio === audio) speakCache.delete(key);
+  });
+  return audio;
 }

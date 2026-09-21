@@ -7,6 +7,8 @@ const CAN = [
   { emoji: "🎨", title: "AI images", text: "Custom illustrations, characters and backgrounds drawn for your widget.", example: "A cute pixel-art cat that purrs when you pet it" },
   { emoji: "🔊", title: "AI sound effects", text: "Real sounds instead of beeps: boings, laughs, explosions, applause.", example: "A big red button that sets off a dramatic explosion" },
   { emoji: "🐦", title: "Live tweets", text: "The latest posts about any topic, hashtag, $coin or person on X.", example: "A mood meter for the latest tweets about $BTC" },
+  { emoji: "📰", title: "Live news", text: "Fresh headlines about anything from Google News.", example: "A ticker of the latest headlines about space launches" },
+  { emoji: "🗣️", title: "AI voices", text: "Widgets that talk: narrators, announcers, whispering fortune tellers.", example: "A fortune teller who whispers your fortune out loud" },
   { emoji: "🤖", title: "AI writing", text: "Text written on the spot: roasts, poems, horoscopes, verdicts.", example: "Roast any X user based on their latest tweets" },
   { emoji: "📡", title: "Live data", text: "Free public data like crypto prices, weather and space facts.", example: "Today's weather in any city as a cute animation" },
   { emoji: "💾", title: "Remembers you", text: "Your score, settings or pet's name are saved in your browser.", example: "A plant that grows a little every day you water it" },
