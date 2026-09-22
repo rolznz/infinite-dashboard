@@ -44,6 +44,7 @@ function broadcastWidget(widgetId: string) {
   const row = db.prepare(`SELECT w.*, ${FUN_SQL} FROM widgets w WHERE w.id = ?`).get(widgetId) as unknown as WidgetRow & {
     fun: number | null;
   };
+  if (row.hidden) return; // deleted by its owner while an edit was finishing
   // `liked` and `downvoted` are per viewer, so leave them out and let each client keep its own.
   const { liked: _, downvoted: __, ...dto } = widgetDto({ ...row, likes: likesOf(widgetId) });
   broadcast("widget.added", dto);

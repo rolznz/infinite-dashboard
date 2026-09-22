@@ -159,6 +159,14 @@ export default function App() {
     setBuildsOpen(true);
   }
 
+  function forgetBuilds(ids: string[]) {
+    const mine = loadMine();
+    for (const id of ids) mine.delete(id);
+    saveMine(mine);
+    setBuilds((cur) => cur.filter((s) => !ids.includes(s.id)));
+    toast.success("Deleted");
+  }
+
   function viewWidget(id: string) {
     const w = widgetsRef.current?.find((x) => x.id === id);
     if (w && w.likes < 0) setShowDownvoted(true);
@@ -276,6 +284,7 @@ export default function App() {
           onViewWidget={viewWidget}
           onEdit={openEdit}
           onRetry={retry}
+          onDelete={forgetBuilds}
         />
         <ForkDialog widget={forkWidget} onOpenChange={(open) => !open && setForkWidget(undefined)} onFork={fork} />
         <BuildsSheet
@@ -287,6 +296,7 @@ export default function App() {
           onViewWidget={viewWidget}
           onEdit={openEdit}
           onRetry={retry}
+          onDelete={forgetBuilds}
         />
       </ErrorBoundary>
     </div>

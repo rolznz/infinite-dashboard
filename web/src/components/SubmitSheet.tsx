@@ -6,12 +6,12 @@ import { CapabilitiesDialog } from "@/components/CapabilitiesDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { EXAMPLES } from "@/lib/format";
 import { load, save, visitorId } from "@/lib/storage";
-import { cn } from "@/lib/utils";
 import type { BuildModel, ModelOptions, Suggestion, Widget } from "@/lib/types";
 import { useIsDesktop } from "@/lib/useMediaQuery";
 
@@ -41,6 +41,7 @@ export function SubmitSheet(props: {
   onViewWidget: (widgetId: string) => void;
   onEdit: (widgetId: string, change?: string) => void;
   onRetry: (prompt: string) => void;
+  onDelete: (ids: string[]) => void;
 }) {
   const isDesktop = useIsDesktop();
   const editing = props.editOf;
@@ -154,7 +155,7 @@ export function SubmitSheet(props: {
               className="text-base"
             />
           )}
-          {models && <ModelToggle options={models} value={model} onChange={setPicked} />}
+          {models && <ModelSelect options={models} value={model} onChange={setPicked} />}
           <Button type="submit" size="lg" disabled={!valid || sending} className="h-11 gap-2">
             {sending ? <Loader2Icon className="animate-spin" /> : <SendIcon />}
             {editing ? "Update it" : "Build it"}
@@ -210,6 +211,7 @@ export function SubmitSheet(props: {
                 onViewWidget={props.onViewWidget}
                 onEdit={props.onEdit}
                 onRetry={props.onRetry}
+                onDelete={props.onDelete}
               />
             </div>
           )}
@@ -227,46 +229,37 @@ export function SubmitSheet(props: {
   );
 }
 
-function ModelToggle(props: { options: ModelOptions; value: BuildModel; onChange: (m: BuildModel) => void }) {
+function ModelSelect(props: { options: ModelOptions; value: BuildModel; onChange: (m: BuildModel) => void }) {
   const { models, fastLeft, fastTotal } = props.options;
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="text-xs font-medium text-muted-foreground">Model</div>
-      <div role="radiogroup" aria-label="Build model" className="flex flex-col gap-1 rounded-lg bg-muted p-1">
-        {models.map((m) => {
-          const disabled = m.key === "fast" && fastLeft === 0;
-          const selected = props.value === m.key;
-          return (
-            <button
-              key={m.key}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              disabled={disabled}
-              onClick={() => props.onChange(m.key)}
-              className={cn(
-                "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
-                selected ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                disabled && "cursor-not-allowed opacity-50 hover:text-muted-foreground",
-              )}
-            >
-              <span className="flex items-center gap-1.5 font-medium">
+      <label htmlFor="build-model" className="text-xs font-medium text-muted-foreground">
+        Model
+      </label>
+      <Select value={props.value} onValueChange={(v) => props.onChange(v as BuildModel)}>
+        <SelectTrigger id="build-model">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {models.map((m) => (
+            <SelectItem key={m.key} value={m.key} disabled={m.key === "fast" && fastLeft === 0}>
+              <SelectItemText>
                 {m.label}
                 {m.tag && (
-                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                  <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
                     {m.tag}
                   </Badge>
                 )}
-              </span>
-              {m.key === "fast" && (
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {fastLeft > 0 ? `${fastLeft} of ${fastTotal} free left` : "Free builds used up"}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+              </SelectItemText>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {fastLeft > 0
+          ? `${fastLeft} of ${fastTotal} free fast builds or edits left`
+          : "Free fast builds used up"}
+      </p>
     </div>
   );
 }

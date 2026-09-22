@@ -82,6 +82,22 @@ for (const [route, value] of [["like", 1], ["downvote", -1]] as const) {
   });
 }
 
+// Only the visitor who built a widget can delete it. It's hidden, not wiped, so it can be restored by hand.
+app.post("/api/widgets/:id/delete", (req, res) => {
+  const visitor = String(req.body?.visitor ?? "");
+  const owner = db
+    .prepare(`SELECT s.visitor FROM widgets w JOIN suggestions s ON s.id = w.suggestion_id WHERE w.id = ? AND w.hidden = 0`)
+    .get(req.params.id) as { visitor: string | null } | undefined;
+  if (!owner || !visitor || owner.visitor !== visitor) return res.status(404).json({ error: "Not found" });
+  const edits = db
+    .prepare(`SELECT id FROM suggestions WHERE edit_of = ? AND status IN ('pending','triaging','accepted','building','testing')`)
+    .all(req.params.id) as { id: string }[];
+  for (const e of edits) cancelSuggestion(e.id);
+  db.prepare("UPDATE widgets SET hidden = 1 WHERE id = ?").run(req.params.id);
+  broadcast("widget.hidden", { id: req.params.id });
+  res.json({ ok: true });
+});
+
 app.get("/api/score", (_req, res) => {
   res.json({ value: getScore() });
 });

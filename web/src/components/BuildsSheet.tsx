@@ -1,4 +1,4 @@
-import { ChevronDownIcon, ExternalLinkIcon, Loader2Icon, PencilIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, Loader2Icon, PencilIcon, RotateCcwIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,45 @@ function CancelButton({ s }: { s: Suggestion }) {
   );
 }
 
+/** Removes a build (and its edits) from the list; a live widget is taken off the dashboard too. Asks first. */
+function DeleteButton(props: { s: Suggestion; edits: Suggestion[]; live: boolean; onDelete: (ids: string[]) => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [sending, setSending] = useState(false);
+  const { s } = props;
+  if (IN_PROGRESS.includes(s.status)) return null;
+
+  async function confirm() {
+    const widgetId = s.widgetId ?? s.editOf;
+    setSending(true);
+    try {
+      if (props.live && widgetId) await api.deleteWidget(widgetId, visitorId);
+      props.onDelete([s.id, ...props.edits.map((e) => e.id)]);
+    } catch (e) {
+      toast.error((e as Error).message);
+      setSending(false);
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <Button size="sm" variant="ghost" className="gap-1 text-muted-foreground" onClick={() => setConfirming(true)}>
+        <Trash2Icon /> Delete
+      </Button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-destructive/10 p-2 text-xs">
+      <span className="flex-1">{props.live ? "Take this widget off the dashboard for good?" : "Remove this from your builds?"}</span>
+      <Button size="sm" variant="ghost" disabled={sending} onClick={() => setConfirming(false)}>
+        Keep it
+      </Button>
+      <Button size="sm" variant="destructive" className="gap-1" disabled={sending} onClick={confirm}>
+        {sending ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />} Yes, delete
+      </Button>
+    </div>
+  );
+}
+
 /** A follow-up edit, shown under the build it changed. */
 function Edit(props: {
   s: Suggestion;
@@ -126,6 +165,7 @@ function Build(props: {
   onViewWidget: (widgetId: string) => void;
   onEdit?: (widgetId: string, change?: string) => void;
   onRetry?: (prompt: string) => void;
+  onDelete?: (ids: string[]) => void;
 }) {
   const { s, widget } = props;
   const expanded = props.expanded === s.id;
@@ -214,6 +254,11 @@ function Build(props: {
           )}
         </div>
       )}
+      {props.onDelete && (
+        <div className="mt-2 flex flex-col items-end">
+          <DeleteButton s={s} edits={props.edits} live={!!widget} onDelete={props.onDelete} />
+        </div>
+      )}
     </li>
   );
 }
@@ -227,6 +272,8 @@ export function BuildList(props: {
   onEdit?: (widgetId: string, change?: string) => void;
   /** Reopens the submit sheet with a failed or denied build's prompt, ready to edit. */
   onRetry?: (prompt: string) => void;
+  /** Forgets these builds; a live widget among them has already been deleted on the server. */
+  onDelete?: (ids: string[]) => void;
 }) {
   const [expanded, setExpanded] = useState(props.highlightId);
 
@@ -262,6 +309,7 @@ export function BuildList(props: {
           onViewWidget={props.onViewWidget}
           onEdit={props.onEdit}
           onRetry={props.onRetry}
+          onDelete={props.onDelete}
         />
       ))}
     </ul>
@@ -278,6 +326,7 @@ export function BuildsSheet(props: {
   onViewWidget: (widgetId: string) => void;
   onEdit: (widgetId: string, change?: string) => void;
   onRetry: (prompt: string) => void;
+  onDelete: (ids: string[]) => void;
 }) {
   const isDesktop = useIsDesktop();
 
@@ -299,6 +348,7 @@ export function BuildsSheet(props: {
             onViewWidget={props.onViewWidget}
             onEdit={props.onEdit}
             onRetry={props.onRetry}
+            onDelete={props.onDelete}
           />
         </div>
       </SheetContent>

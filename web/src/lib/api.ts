@@ -33,5 +33,7 @@ export const api = {
     ),
   cancel: (id: string, visitor: string) =>
     request<{ ok: true }>(`/api/suggestions/${id}/cancel`, { method: "POST", body: JSON.stringify({ visitor }) }),
+  deleteWidget: (id: string, visitor: string) =>
+    request<{ ok: true }>(`/api/widgets/${id}/delete`, { method: "POST", body: JSON.stringify({ visitor }) }),
   suggestion: (id: string) => request<{ suggestion: Suggestion; events: SuggestionEvent[] }>(`/api/suggestions/${id}`),
 };
