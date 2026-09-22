@@ -303,10 +303,13 @@ export function llmComplete(input: { system?: unknown; prompt?: unknown }, ip: s
     maxAmountUsd: 0.02,
     timeoutMs: 60_000,
   }).then((r) => {
-    const j = r.json<{ choices?: { message?: { content?: string } }[] }>();
-    const out = String(j.choices?.[0]?.message?.content ?? "").trim();
+    const j = r.json<{ choices?: { message?: { content?: string; reasoning_content?: string } }[] }>();
+    const msg = j.choices?.[0]?.message;
+    const out = String(msg?.content ?? "").trim();
     console.log(`[tools] llm ${config.llmModel} cost $${r.costUsd} → ${out.length} chars`);
     if (!out) throw new Error("empty completion");
+    // When a thinking model runs out of tokens before answering, BlockRun copies the reasoning into content.
+    if (out === String(msg?.reasoning_content ?? "").trim()) throw new Error("model only returned its reasoning");
     return out;
   });
   llmCache.set(key, { at: Date.now(), text });
