@@ -1,4 +1,5 @@
 import { PlusIcon } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -10,10 +11,10 @@ export function Header(props: { online: number; onOpenSubmit: () => void }) {
     >
       <div className="mx-auto flex h-16 max-w-[1800px] items-center gap-2 px-4 sm:gap-3">
         <a href="/" className="flex min-w-0 items-center gap-2 font-heading text-lg font-semibold tracking-tight">
-          <span className="text-2xl leading-none">∞</span>
-          <span className="truncate">
-            Infinite<span className="hidden sm:inline"> Dash</span>
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-foreground text-background">
+            <Logo className="size-7" />
           </span>
+          <span className="truncate">Infinite Dashboard</span>
         </a>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
