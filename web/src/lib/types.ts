@@ -11,6 +11,7 @@ export interface Widget {
   version: string;
   likes: number;
   liked: boolean;
+  downvoted: boolean;
   /** Jev's fun rating of the original idea, 0-4. */
   fun: number | null;
 }
@@ -28,6 +29,8 @@ export interface Suggestion {
   editOf: string | null;
   /** Jev's fun rating, 0-4 (new widgets only, once triaged). */
   fun: number | null;
+  /** LLM tokens used by the build so far (updated every few seconds while it runs). */
+  tokens: number | null;
   createdAt: number;
   updatedAt: number;
 }

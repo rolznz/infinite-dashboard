@@ -6,7 +6,7 @@ import { config } from "./config.ts";
 import { db, getSuggestion, type WidgetRow } from "./db.ts";
 import { onlineCount, broadcast, sseHandler } from "./sse.ts";
 import { createSuggestion, listEvents, listSuggestions, suggestionDto } from "./suggestions.ts";
-import { initDataDirs, listWidgets, toggleLike, widgetDto } from "./widgets.ts";
+import { initDataDirs, listWidgets, vote, widgetDto } from "./widgets.ts";
 import { cancelSuggestion, startOrchestrator } from "../worker/orchestrator.ts";
 import { checkModelAvailable } from "../worker/build.ts";
 import { llmComplete, newsSearch, speak, ToolError, twitterSearch } from "../worker/tools.ts";
@@ -71,14 +71,16 @@ app.get("/api/widgets", (req, res) => {
   res.json({ widgets });
 });
 
-// One like per hashed IP per widget; liking again removes it.
-app.post("/api/widgets/:id/like", (req, res) => {
-  const w = db.prepare("SELECT id FROM widgets WHERE id = ? AND hidden = 0").get(req.params.id);
-  if (!w) return res.status(404).json({ error: "Not found" });
-  const result = toggleLike(req.params.id, ipHash(req));
-  broadcast("widget.likes", { id: req.params.id, likes: result.likes });
-  res.json(result);
-});
+// One vote per hashed IP per widget; voting the same way again removes it.
+for (const [route, value] of [["like", 1], ["downvote", -1]] as const) {
+  app.post(`/api/widgets/:id/${route}`, (req, res) => {
+    const w = db.prepare("SELECT id FROM widgets WHERE id = ? AND hidden = 0").get(req.params.id);
+    if (!w) return res.status(404).json({ error: "Not found" });
+    const result = vote(req.params.id, ipHash(req), value);
+    broadcast("widget.likes", { id: req.params.id, likes: result.likes });
+    res.json(result);
+  });
+}
 
 app.get("/api/score", (_req, res) => {
   res.json({ value: getScore() });

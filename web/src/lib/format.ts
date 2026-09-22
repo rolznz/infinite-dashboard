@@ -8,6 +8,13 @@ export function timeAgo(ms: number) {
   return `${Math.round(h / 24)}d ago`;
 }
 
+/** 950 → "950", 12345 → "12.3k", 1234567 → "1.23M". */
+export function formatTokens(n: number) {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 100_000 ? 1 : 0)}k`;
+  return `${(n / 1_000_000).toFixed(2)}M`;
+}
+
 export const EXAMPLES = [
   "A cookie clicker with a counter that remembers my clicks",
   "A button that plays a silly fart sound",

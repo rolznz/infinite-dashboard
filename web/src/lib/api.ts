@@ -17,7 +17,10 @@ export const api = {
     request<{ widgets: Widget[] }>(`/api/widgets${preview ? `?preview=${encodeURIComponent(preview)}` : ""}`).then(
       (r) => r.widgets,
     ),
-  like: (id: string) => request<{ likes: number; liked: boolean }>(`/api/widgets/${id}/like`, { method: "POST" }),
+  like: (id: string) =>
+    request<{ likes: number; liked: boolean; downvoted: boolean }>(`/api/widgets/${id}/like`, { method: "POST" }),
+  downvote: (id: string) =>
+    request<{ likes: number; liked: boolean; downvoted: boolean }>(`/api/widgets/${id}/downvote`, { method: "POST" }),
   addScore: (delta: number) =>
     request<{ value: number }>("/api/score", { method: "POST", body: JSON.stringify({ delta }) }).then((r) => r.value),
   submit: (body: { prompt: string; author: string; visitor: string; editOf?: string }) =>

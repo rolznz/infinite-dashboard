@@ -9,7 +9,7 @@ import { SubmitSheet } from "@/components/SubmitSheet";
 import { WidgetCard } from "@/components/WidgetCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import { EXAMPLES } from "@/lib/format";
+import { EXAMPLES, formatTokens } from "@/lib/format";
 import { on } from "@/lib/live";
 import { loadMine, saveMine } from "@/lib/storage";
 import { IN_PROGRESS, type Suggestion, type Widget } from "@/lib/types";
@@ -39,6 +39,7 @@ export default function App() {
   const [buildsOpen, setBuildsOpen] = useState(false);
   const [highlightBuild, setHighlightBuild] = useState<string>();
   const [highlightWidget, setHighlightWidget] = useState<string>();
+  const [showDownvoted, setShowDownvoted] = useState(false);
   // Toast actions outlive the render that made them, so openEdit reads the latest widgets from here.
   const widgetsRef = useRef(widgets);
   widgetsRef.current = widgets;
@@ -77,6 +78,9 @@ export default function App() {
       on("widget.likes", (d: { id: string; likes: number }) =>
         setWidgets((cur) => cur?.map((w) => (w.id === d.id ? { ...w, likes: d.likes } : w))),
       ),
+      on("suggestion.tokens", (d: { id: string; tokens: number }) =>
+        setBuilds((cur) => cur.map((s) => (s.id === d.id ? { ...s, tokens: d.tokens } : s))),
+      ),
       on("suggestion.updated", (s: Suggestion) => {
         if (!loadMine().has(s.id)) return; // only the visitor's own builds matter here
         setBuilds((cur) => mergeBuilds(cur, [s]));
@@ -95,22 +99,55 @@ export default function App() {
     return () => offs.forEach((off) => off());
   }, [refresh]);
 
-  const inProgress = useMemo(() => builds.filter((s) => IN_PROGRESS.includes(s.status)).length, [builds]);
+  const running = useMemo(() => builds.filter((s) => IN_PROGRESS.includes(s.status)), [builds]);
+  const inProgress = running.length;
+  const runningTokens = running.reduce((n, s) => n + (s.tokens ?? 0), 0);
 
-  const onLike = useCallback(async (w: Widget) => {
+  // Widgets voted below zero are hidden unless the visitor asks to see them.
+  const visible = useMemo(
+    () => (showDownvoted ? widgets : widgets?.filter((w) => w.likes >= 0)),
+    [widgets, showDownvoted],
+  );
+  const downvotedCount = (widgets?.length ?? 0) - (visible?.length ?? 0);
+
+  /** Like (1) or downvote (-1); casting the same vote again takes it back. Optimistic, then the server's numbers. */
+  const castVote = useCallback(async (w: Widget, value: 1 | -1) => {
     const id = w.id;
-    // Liking (not unliking) shows the widget's prompt so it can be forked.
-    if (!w.liked && w.prompt) setForkWidget(w);
+    const before = w.liked ? 1 : w.downvoted ? -1 : 0;
+    const after = before === value ? 0 : value;
+    const likes = w.likes - before + after;
     setWidgets((cur) =>
-      cur?.map((w) => (w.id === id ? { ...w, liked: !w.liked, likes: w.likes + (w.liked ? -1 : 1) } : w)),
+      cur?.map((x) => (x.id === id ? { ...x, likes, liked: after === 1, downvoted: after === -1 } : x)),
     );
     try {
-      const r = await api.like(id);
-      setWidgets((cur) => cur?.map((w) => (w.id === id ? { ...w, ...r } : w)));
+      const r = await (value === 1 ? api.like(id) : api.downvote(id));
+      setWidgets((cur) => cur?.map((x) => (x.id === id ? { ...x, ...r } : x)));
     } catch (e) {
       toast.error((e as Error).message);
     }
+    return likes;
   }, []);
+
+  const onLike = useCallback(
+    (w: Widget) => {
+      // Liking (not unliking) shows the widget's prompt so it can be forked.
+      if (!w.liked && w.prompt) setForkWidget(w);
+      castVote(w, 1);
+    },
+    [castVote],
+  );
+
+  const onDownvote = useCallback(
+    async (w: Widget) => {
+      const likes = await castVote(w, -1);
+      if (likes < 0 && !w.downvoted) {
+        toast("Downvoted. It's now hidden with the other downvoted apps.", {
+          action: { label: "Undo", onClick: () => castVote({ ...w, likes, liked: false, downvoted: true }, -1) },
+        });
+      }
+    },
+    [castVote],
+  );
 
   function onSubmitted(s: Suggestion) {
     const mine = loadMine().add(s.id);
@@ -122,6 +159,8 @@ export default function App() {
   }
 
   function viewWidget(id: string) {
+    const w = widgetsRef.current?.find((x) => x.id === id);
+    if (w && w.likes < 0) setShowDownvoted(true);
     setBuildsOpen(false);
     setSubmitOpen(false);
     setHighlightWidget(id);
@@ -129,11 +168,12 @@ export default function App() {
     setTimeout(() => setHighlightWidget(undefined), 2500);
   }
 
-  function fork(prompt: string) {
+  // Only calls state setters, so a stable callback keeps the memoized cards from re-rendering.
+  const fork = useCallback((prompt: string) => {
     setForkWidget(undefined);
     openSubmit(prompt);
     setForkOf(prompt);
-  }
+  }, []);
 
   function openSubmit(text?: string) {
     setPrefill(text);
@@ -162,7 +202,7 @@ export default function App() {
     <div className="min-h-dvh bg-background text-foreground">
       <Header online={online} onOpenSubmit={() => openSubmit()} />
       <main className="mx-auto max-w-[1800px] px-4 pt-[calc(4rem+env(safe-area-inset-top)+1rem)] pb-16">
-        {widgets === undefined ? (
+        {widgets === undefined || visible === undefined ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
             {Array.from({ length: 6 }, (_, i) => (
               <Skeleton key={i} className="h-[360px] rounded-xl" />
@@ -171,16 +211,35 @@ export default function App() {
         ) : widgets.length === 0 ? (
           <EmptyState onPick={openSubmit} />
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-            {widgets.map((w) => (
-              <ErrorBoundary
-                key={w.id}
-                fallback={<div className="h-[360px] rounded-xl border p-4 text-sm">💥 This card broke</div>}
-              >
-                <WidgetCard widget={w} highlighted={w.id === highlightWidget} onLike={onLike} />
-              </ErrorBoundary>
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+              {visible.map((w) => (
+                <ErrorBoundary
+                  key={w.id}
+                  fallback={<div className="h-[360px] rounded-xl border p-4 text-sm">💥 This card broke</div>}
+                >
+                  <WidgetCard
+                    widget={w}
+                    highlighted={w.id === highlightWidget}
+                    onLike={onLike}
+                    onDownvote={onDownvote}
+                    onFork={fork}
+                  />
+                </ErrorBoundary>
+              ))}
+            </div>
+            {(downvotedCount > 0 || showDownvoted) && (
+              <div className="mt-8 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowDownvoted((v) => !v)}
+                  className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  {showDownvoted ? "Hide downvoted apps" : `Show downvoted apps (${downvotedCount})`}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 
@@ -196,6 +255,9 @@ export default function App() {
         >
           <Loader2Icon className="size-4 animate-spin text-amber-500" />
           Building your widget{inProgress > 1 ? `s (${inProgress})` : ""}…
+          {runningTokens > 0 && (
+            <span className="font-normal text-muted-foreground tabular-nums">{formatTokens(runningTokens)} tokens</span>
+          )}
         </button>
       )}
 

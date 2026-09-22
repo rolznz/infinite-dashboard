@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { config } from "../server/config.ts";
 import { db, getSetting, getSuggestion, type Suggestion } from "../server/db.ts";
-import { appendLog, jobLog, jobLogFile, setStatus } from "../server/suggestions.ts";
+import { appendLog, jobLog, jobLogFile, setStatus, setTokens } from "../server/suggestions.ts";
 import { readManifest, type Manifest } from "../server/widgets.ts";
 import { createBuilder, type Builder } from "./build.ts";
 import { runChecks } from "./checks.ts";
@@ -153,6 +153,8 @@ async function buildSuggestion(s: Suggestion, signal: AbortSignal) {
     taskfuelUsd: 0,
   };
   let builder: Builder | undefined;
+  let reportedTokens = 0;
+  let tokenTimer: NodeJS.Timeout | undefined;
   const started = Date.now();
   const deadline = started + config.buildTimeoutMs;
   const balanceBefore = config.taskfuelEnabled ? await taskfuelBalance(true) : undefined;
@@ -160,6 +162,10 @@ async function buildSuggestion(s: Suggestion, signal: AbortSignal) {
   if (balanceBefore !== undefined) jobLog(s.id, `TaskFuel balance before: $${balanceBefore.toFixed(4)}`);
 
   try {
+    tokenTimer = setInterval(() => {
+      const n = builder?.tokens() ?? 0;
+      if (n !== reportedTokens) setTokens(s.id, (reportedTokens = n));
+    }, 3000);
     if (live) {
       fs.rmSync(widgetDir, { recursive: true, force: true });
       fs.cpSync(path.join(config.widgets, widgetId), widgetDir, { recursive: true });
@@ -210,6 +216,7 @@ async function buildSuggestion(s: Suggestion, signal: AbortSignal) {
     setStatus(s.id, "failed", reason, { reason, llm_tokens: builder?.tokens() ?? null });
     removeBuild(widgetId);
   } finally {
+    clearInterval(tokenTimer);
     builder?.dispose();
     const balanceAfter = config.taskfuelEnabled ? await taskfuelBalance(true) : undefined;
     const spent =

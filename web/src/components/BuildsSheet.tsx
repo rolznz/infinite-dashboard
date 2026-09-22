@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api } from "@/lib/api";
-import { timeAgo } from "@/lib/format";
+import { formatTokens, timeAgo } from "@/lib/format";
 import { visitorId } from "@/lib/storage";
 import { on } from "@/lib/live";
 import { IN_PROGRESS, type Suggestion, type SuggestionEvent, type Widget } from "@/lib/types";
@@ -15,7 +15,8 @@ import { FunBadge } from "./FunBadge";
 import { StatusBadge } from "./StatusBadge";
 
 /** Status timeline for one build. Only user-facing messages; build internals stay on the server. */
-function Timeline({ id }: { id: string }) {
+function Timeline({ s }: { s: Suggestion }) {
+  const { id } = s;
   const [events, setEvents] = useState<SuggestionEvent[]>([]);
 
   useEffect(() => {
@@ -40,6 +41,11 @@ function Timeline({ id }: { id: string }) {
           <span className="ml-1 text-muted-foreground/70">· {timeAgo(e.at)}</span>
         </li>
       ))}
+      {!!s.tokens && (
+        <li className="text-xs text-muted-foreground tabular-nums">
+          {formatTokens(s.tokens)} tokens {IN_PROGRESS.includes(s.status) ? "spent so far" : "spent"}
+        </li>
+      )}
     </ol>
   );
 }
@@ -102,7 +108,7 @@ function Edit(props: {
       )}
       {props.expanded && (
         <ErrorBoundary>
-          <Timeline id={s.id} />
+          <Timeline s={s} />
         </ErrorBoundary>
       )}
     </li>
@@ -168,7 +174,7 @@ function Build(props: {
       )}
       {expanded && (
         <ErrorBoundary>
-          <Timeline id={s.id} />
+          <Timeline s={s} />
         </ErrorBoundary>
       )}
       {props.edits.length > 0 && (

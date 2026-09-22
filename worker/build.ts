@@ -103,6 +103,7 @@ function buildSystemPrompt() {
 export interface Builder {
   session: AgentSession;
   run(message: string): Promise<void>;
+  /** Tokens used so far, including an estimate for the turn still streaming. */
   tokens(): number;
   /** Files the agent wrote or edited outside its widget folder (usually a mistyped absolute path). */
   outsideWrites(): string[];
@@ -167,6 +168,8 @@ export async function createBuilder(opts: {
 
   const rawLog = fs.createWriteStream(path.join(config.logs, `${opts.suggestionId}.jsonl`), { flags: "a" });
   let tokens = 0;
+  /** Characters streamed in the current turn; its real usage only arrives when the turn ends. */
+  let streamedChars = 0;
   let turns = 0;
   let summary: string | undefined;
   let mergedPrompt: string | undefined;
@@ -200,7 +203,11 @@ export async function createBuilder(opts: {
       rawLog.write(JSON.stringify({ at: Date.now(), ...event }) + "\n");
     }
     summarize(opts.suggestionId, opts.cwd, event, (n) => (tokens += n));
+    if (event.type === "message_update" && "delta" in event.assistantMessageEvent) {
+      streamedChars += event.assistantMessageEvent.delta.length;
+    }
     if (event.type === "message_end" && event.message.role === "assistant") {
+      streamedChars = 0;
       const content = (event.message as { content?: { type: string; text?: string }[] }).content ?? [];
       const text = content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
       const m = text.match(/SUMMARY:\s*(.+)/);
@@ -223,7 +230,7 @@ export async function createBuilder(opts: {
       }
       if (stopped) throw stopped;
     },
-    tokens: () => tokens,
+    tokens: () => tokens + Math.ceil(streamedChars / 4),
     outsideWrites: () => [...outside],
     summary: () => summary,
     mergedPrompt: () => mergedPrompt,

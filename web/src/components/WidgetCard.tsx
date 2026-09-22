@@ -1,7 +1,8 @@
-import { HeartIcon } from "lucide-react";
+import { GitForkIcon, HeartIcon, MoreHorizontalIcon, ThumbsDownIcon } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { timeAgo } from "@/lib/format";
 import { createSdk } from "@/lib/sdk";
 import type { Widget } from "@/lib/types";
@@ -76,6 +77,8 @@ export const WidgetCard = memo(function WidgetCard(props: {
   widget: Widget;
   highlighted: boolean;
   onLike: (widget: Widget) => void;
+  onDownvote: (widget: Widget) => void;
+  onFork: (prompt: string) => void;
 }) {
   const { widget: w } = props;
   return (
@@ -115,6 +118,25 @@ export const WidgetCard = memo(function WidgetCard(props: {
           <HeartIcon className={cn(w.liked && "fill-current")} />
           {w.likes}
         </Button>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" className="-ml-1.5 text-muted-foreground" aria-label="More">
+              <MoreHorizontalIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => props.onDownvote(w)}>
+              <ThumbsDownIcon className={cn(w.downvoted && "fill-current")} />
+              {w.downvoted ? "Remove downvote" : "Downvote"}
+            </DropdownMenuItem>
+            {w.prompt && (
+              <DropdownMenuItem onSelect={() => props.onFork(w.prompt!)}>
+                <GitForkIcon />
+                Fork
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <WidgetBody widget={w} />
     </Card>

@@ -60,6 +60,8 @@ for (const sql of [
   // Jev's triage: the fun rating (0-4, shown in the UI) and all raw judgments as JSON (for tuning).
   "ALTER TABLE suggestions ADD COLUMN fun REAL",
   "ALTER TABLE suggestions ADD COLUMN jev TEXT",
+  // A row in likes is a vote: 1 for a like, -1 for a downvote.
+  "ALTER TABLE likes ADD COLUMN value INTEGER NOT NULL DEFAULT 1",
 ]) {
   try {
     db.exec(sql);

@@ -16,6 +16,7 @@ export const suggestionDto = (s: Suggestion) => ({
   summary: s.summary,
   editOf: s.edit_of,
   fun: s.fun,
+  tokens: s.llm_tokens,
   createdAt: s.created_at,
   updatedAt: s.updated_at,
 });
@@ -75,6 +76,12 @@ export function addStep(id: string, message: string) {
   const event = addEvent(id, s.status, message);
   jobLog(id, `STEP ${message}`);
   broadcast("suggestion.updated", { ...suggestionDto(s), event });
+}
+
+/** Live token count while a build runs. Not a timeline event, so it doesn't clutter the timeline. */
+export function setTokens(id: string, tokens: number) {
+  db.prepare("UPDATE suggestions SET llm_tokens = ? WHERE id = ?").run(tokens, id);
+  broadcast("suggestion.tokens", { id, tokens });
 }
 
 export function listSuggestions(opts: { before?: number; limit: number; ids?: string[] }) {
