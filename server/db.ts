@@ -62,6 +62,8 @@ for (const sql of [
   "ALTER TABLE suggestions ADD COLUMN jev TEXT",
   // A row in likes is a vote: 1 for a like, -1 for a downvote.
   "ALTER TABLE likes ADD COLUMN value INTEGER NOT NULL DEFAULT 1",
+  // Which build model the visitor picked: "fast" or "cheap" (see config.buildModels).
+  "ALTER TABLE suggestions ADD COLUMN model TEXT",
 ]) {
   try {
     db.exec(sql);
@@ -92,6 +94,7 @@ export interface Suggestion {
   edit_of: string | null;
   fun: number | null;
   jev: string | null;
+  model: string | null;
   visitor: string | null;
   ip_hash: string | null;
   created_at: number;

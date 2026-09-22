@@ -21,8 +21,23 @@ export const config = {
   shots: path.join(dataDir, "shots"),
   piAgentDir: path.join(dataDir, "pi-agent"),
 
-  piProvider: process.env.PI_PROVIDER ?? "cerebras",
-  piModel: process.env.PI_MODEL ?? "qwen-3.8-27b",
+  /** Build models people can pick from. "fast" is pricey, so each hashed IP gets a few free, then drops to "cheap". */
+  buildModels: {
+    fast: {
+      provider: "cerebras",
+      id: process.env.FAST_MODEL ?? "qwen-3.8-27b",
+      label: "Qwen3.8 - Cerebras",
+      tag: "FAST",
+    },
+    cheap: {
+      provider: "openrouter",
+      id: process.env.CHEAP_MODEL ?? "deepseek/deepseek-v4.1-flash",
+      label: "DeepSeek 4.1 Flash - OpenRouter",
+      tag: "",
+    },
+  } as Record<"fast" | "cheap", { provider: string; id: string; label: string; tag: string }>,
+  /** Builds per hashed IP on the fast model before it switches to the cheap one. */
+  freeFastBuilds: Number(process.env.FREE_FAST_BUILDS ?? 3),
   piThinking: (process.env.PI_THINKING ?? "high") as "off" | "minimal" | "low" | "medium" | "high",
 
   taskfuelBaseUrl: (process.env.TASKFUEL_BASE_URL ?? "https://app.taskfuel.ai").replace(/\/+$/, ""),
@@ -45,9 +60,13 @@ export const config = {
   maxBuilds: Number(process.env.MAX_BUILDS ?? 2),
   /** Wall-clock limit for a whole build job (first run + repair), so a stuck agent can't burn LLM credit. */
   buildTimeoutMs: Number(process.env.BUILD_TIMEOUT_MIN ?? 5) * 60_000,
+  /** The cheap model (OpenRouter) is slower, so its builds get longer. */
+  cheapBuildTimeoutMs: Number(process.env.CHEAP_BUILD_TIMEOUT_MIN ?? 10) * 60_000,
   /** Max LLM turns per build job; normal builds take 5-25. */
   maxBuildTurns: Number(process.env.MAX_BUILD_TURNS ?? 40),
   minTaskfuelBalance: Number(process.env.MIN_TASKFUEL_BALANCE ?? 1),
   maxPending: 50,
   submitsPerIpPerHour: Number(process.env.SUBMITS_PER_IP_PER_HOUR ?? 10),
 };
+
+export type BuildModel = keyof typeof config.buildModels;

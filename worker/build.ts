@@ -9,7 +9,7 @@ import {
   type AgentSession,
   type AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
-import { config } from "../server/config.ts";
+import { config, type BuildModel } from "../server/config.ts";
 import { addStep, appendLog, jobLog } from "../server/suggestions.ts";
 import { createBuildTools } from "./tools.ts";
 
@@ -22,39 +22,36 @@ const PROVIDERS: Record<string, { baseUrl: string; compat: Record<string, unknow
   cerebras: { baseUrl: "https://api.cerebras.ai/v1", compat: { supportsStore: false, supportsDeveloperRole: false } },
 };
 
-const apiKeyEnv = () => `${config.piProvider.toUpperCase()}_API_KEY`;
+const apiKeyEnv = (provider: string) => `${provider.toUpperCase()}_API_KEY`;
 
 let runtimePromise: Promise<ModelRuntime> | undefined;
 
-/** Registers PI_MODEL on its provider via models.json when PI's built-in catalog doesn't know it. */
+/** Registers the build models on their providers via models.json, since PI's built-in catalog may not know them. */
 function writeModelsJson() {
   const modelsPath = path.join(config.piAgentDir, "models.json");
-  const p = PROVIDERS[config.piProvider];
-  const models = p
-    ? {
-        providers: {
-          [config.piProvider]: {
-            baseUrl: p.baseUrl,
-            api: "openai-completions",
-            apiKey: `$${apiKeyEnv()}`,
-            compat: p.compat,
-            models: [
-              {
-                id: config.piModel,
-                name: config.piModel,
-                reasoning: true,
-                input: ["text"],
-                contextWindow: 131072,
-                maxTokens: 32768,
-                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-              },
-            ],
-          },
+  const providers: Record<string, unknown> = {};
+  for (const m of Object.values(config.buildModels)) {
+    const p = PROVIDERS[m.provider];
+    providers[m.provider] = {
+      baseUrl: p.baseUrl,
+      api: "openai-completions",
+      apiKey: `$${apiKeyEnv(m.provider)}`,
+      compat: p.compat,
+      models: [
+        {
+          id: m.id,
+          name: m.id,
+          reasoning: true,
+          input: ["text"],
+          contextWindow: 131072,
+          maxTokens: 32768,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         },
-      }
-    : { providers: {} };
+      ],
+    };
+  }
   fs.mkdirSync(config.piAgentDir, { recursive: true });
-  fs.writeFileSync(modelsPath, JSON.stringify(models, null, 2));
+  fs.writeFileSync(modelsPath, JSON.stringify({ providers }, null, 2));
   return modelsPath;
 }
 
@@ -64,30 +61,36 @@ function getRuntime() {
       authPath: path.join(config.piAgentDir, "auth.json"),
       modelsPath: writeModelsJson(),
     });
-    const envKey = process.env[apiKeyEnv()];
-    if (envKey) await runtime.setRuntimeApiKey(config.piProvider, envKey);
+    for (const { provider } of Object.values(config.buildModels)) {
+      const envKey = process.env[apiKeyEnv(provider)];
+      if (envKey) await runtime.setRuntimeApiKey(provider, envKey);
+    }
     return runtime;
   })();
   return runtimePromise;
 }
 
-/** Log at boot whether the provider really serves PI_MODEL, so a wrong id is obvious. */
-export async function checkModelAvailable() {
-  const key = process.env[apiKeyEnv()];
-  if (!key) {
-    console.warn(`[model] ${apiKeyEnv()} is not set, so builds will fail. Add it to .env`);
-    return;
+/** Log at boot whether each provider really serves its build model, so a wrong id or missing key is obvious. */
+export async function checkModelsAvailable() {
+  for (const { provider, id } of Object.values(config.buildModels)) {
+    const key = process.env[apiKeyEnv(provider)];
+    if (!key) {
+      console.warn(`[model] ${apiKeyEnv(provider)} is not set, so ${provider} builds will fail. Add it to .env`);
+      continue;
+    }
+    try {
+      const res = await fetch(`${PROVIDERS[provider].baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) throw new Error(`/models returned ${res.status}`);
+      const ids = ((await res.json()) as { data: { id: string }[] }).data.map((m) => m.id);
+      if (ids.includes(id)) console.log(`[model] using ${provider}/${id}`);
+      else console.warn(`[model] "${id}" is not available on ${provider}`);
+    } catch (e) {
+      console.warn(`[model check] ${provider}: ${(e as Error).message}`);
+    }
   }
-  const p = PROVIDERS[config.piProvider];
-  if (!p) return;
-  const res = await fetch(`${p.baseUrl}/models`, {
-    headers: { Authorization: `Bearer ${key}` },
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) throw new Error(`${config.piProvider} /models returned ${res.status}`);
-  const ids = ((await res.json()) as { data: { id: string }[] }).data.map((m) => m.id);
-  if (ids.includes(config.piModel)) console.log(`[model] using ${config.piProvider}/${config.piModel}`);
-  else console.warn(`[model] PI_MODEL "${config.piModel}" is not available on ${config.piProvider}`);
 }
 
 function buildSystemPrompt() {
@@ -123,10 +126,12 @@ export async function createBuilder(opts: {
   signal: AbortSignal;
   /** Epoch ms after which the whole job is stopped. */
   deadline: number;
+  model: BuildModel;
 }): Promise<Builder> {
   const runtime = await getRuntime();
-  const model = runtime.getModel(config.piProvider, config.piModel);
-  if (!model) throw new Error(`Model ${config.piProvider}/${config.piModel} not found`);
+  const { provider, id: modelId } = config.buildModels[opts.model];
+  const model = runtime.getModel(provider, modelId);
+  if (!model) throw new Error(`Model ${provider}/${modelId} not found`);
 
   const loader = new DefaultResourceLoader({
     cwd: opts.cwd,
@@ -147,7 +152,7 @@ export async function createBuilder(opts: {
   const customTools = config.taskfuelEnabled ? buildTools.tools : [];
   jobLog(
     opts.suggestionId,
-    `PI session: model=${config.piProvider}/${config.piModel} thinking=${config.piThinking} cwd=${opts.cwd} ` +
+    `PI session: model=${provider}/${modelId} thinking=${config.piThinking} cwd=${opts.cwd} ` +
       `tools=[${customTools.map((t) => t.name).join(",")}] taskfuel=${config.taskfuelEnabled ? "on" : "off"}`,
   );
 

@@ -156,7 +156,9 @@ async function buildSuggestion(s: Suggestion, signal: AbortSignal) {
   let reportedTokens = 0;
   let tokenTimer: NodeJS.Timeout | undefined;
   const started = Date.now();
-  const deadline = started + config.buildTimeoutMs;
+  // Builds queued before the model picker existed ran on the fast model.
+  const model = s.model === "cheap" ? "cheap" : "fast";
+  const deadline = started + (model === "cheap" ? config.cheapBuildTimeoutMs : config.buildTimeoutMs);
   const balanceBefore = config.taskfuelEnabled ? await taskfuelBalance(true) : undefined;
   jobLog(s.id, `JOB START "${s.prompt}" → widget ${widgetId}. Log file: ${jobLogFile(s.id)}`);
   if (balanceBefore !== undefined) jobLog(s.id, `TaskFuel balance before: $${balanceBefore.toFixed(4)}`);
@@ -175,8 +177,9 @@ async function buildSuggestion(s: Suggestion, signal: AbortSignal) {
     }
 
     setStatus(s.id, "building", live ? "Updating your widget" : "Building your widget", { widget_id: widgetId });
-    appendLog(s.id, "info", `Building ${widgetId} with ${config.piProvider}/${config.piModel}`);
-    builder = await createBuilder({ suggestionId: s.id, cwd: widgetDir, signal, deadline });
+    const m = config.buildModels[model];
+    appendLog(s.id, "info", `Building ${widgetId} with ${m.provider}/${m.id}`);
+    builder = await createBuilder({ suggestionId: s.id, cwd: widgetDir, signal, deadline, model });
     await builder.run(live ? editMessage(s, live) : taskMessage(s, widgetId));
 
     setStatus(s.id, "testing", "Testing it on the dashboard");

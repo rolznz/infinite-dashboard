@@ -31,8 +31,19 @@ export interface Suggestion {
   fun: number | null;
   /** LLM tokens used by the build so far (updated every few seconds while it runs). */
   tokens: number | null;
+  /** Build model: "fast" or "cheap". */
+  model: BuildModel | null;
   createdAt: number;
   updatedAt: number;
+}
+
+export type BuildModel = "fast" | "cheap";
+
+export interface ModelOptions {
+  models: { key: BuildModel; label: string; tag: string }[];
+  /** Free fast builds this visitor (hashed IP) has left. */
+  fastLeft: number;
+  fastTotal: number;
 }
 
 export interface SuggestionEvent {

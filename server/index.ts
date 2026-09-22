@@ -5,10 +5,10 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { config } from "./config.ts";
 import { db, getSuggestion, type WidgetRow } from "./db.ts";
 import { onlineCount, broadcast, sseHandler } from "./sse.ts";
-import { createSuggestion, listEvents, listSuggestions, suggestionDto } from "./suggestions.ts";
+import { createSuggestion, fastBuildsLeft, listEvents, listSuggestions, suggestionDto } from "./suggestions.ts";
 import { initDataDirs, listWidgets, vote, widgetDto } from "./widgets.ts";
 import { cancelSuggestion, startOrchestrator } from "../worker/orchestrator.ts";
-import { checkModelAvailable } from "../worker/build.ts";
+import { checkModelsAvailable } from "../worker/build.ts";
 import { llmComplete, newsSearch, speak, ToolError, twitterSearch } from "../worker/tools.ts";
 
 initDataDirs();
@@ -101,6 +101,15 @@ app.get("/api/online", (_req, res) => {
   res.json({ count: onlineCount() });
 });
 
+// The build model picker: both options, plus how many free fast builds this visitor has left.
+app.get("/api/models", (req, res) => {
+  res.json({
+    models: Object.entries(config.buildModels).map(([key, m]) => ({ key, label: m.label, tag: m.tag })),
+    fastLeft: fastBuildsLeft(ipHash(req)),
+    fastTotal: config.freeFastBuilds,
+  });
+});
+
 const submits = new Map<string, number[]>();
 
 app.post("/api/suggestions", (req, res) => {
@@ -151,9 +160,12 @@ app.post("/api/suggestions", (req, res) => {
     .get(prompt, Date.now() - 86_400_000);
   if (dup) return res.status(409).json({ error: "Someone already suggested exactly that!" });
 
+  // Out of free fast builds: quietly drop to the cheap model.
+  const model = req.body?.model === "cheap" || fastBuildsLeft(ip) === 0 ? "cheap" : "fast";
+
   recent.push(Date.now());
   submits.set(ip, recent);
-  const s = createSuggestion({ prompt, author, visitor, ipHash: ip, editOf });
+  const s = createSuggestion({ prompt, author, visitor, ipHash: ip, editOf, model });
   res.status(201).json(suggestionDto(s));
 });
 
@@ -248,6 +260,6 @@ if (config.isProd) {
 
 app.listen(config.port, () => {
   console.log(`Infinite Dash on http://localhost:${config.port}`);
-  checkModelAvailable().catch((e) => console.warn("[model check]", e.message));
+  checkModelsAvailable();
   startOrchestrator();
 });

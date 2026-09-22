@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { config } from "./config.ts";
+import { config, type BuildModel } from "./config.ts";
 import { db, getSuggestion, type EventRow, type Status, type Suggestion } from "./db.ts";
 import { broadcast } from "./sse.ts";
 
@@ -17,6 +17,7 @@ export const suggestionDto = (s: Suggestion) => ({
   editOf: s.edit_of,
   fun: s.fun,
   tokens: s.llm_tokens,
+  model: s.model,
   createdAt: s.created_at,
   updatedAt: s.updated_at,
 });
@@ -27,17 +28,26 @@ export function createSuggestion(input: {
   visitor: string | null;
   ipHash: string;
   editOf?: string;
+  model: BuildModel;
 }) {
   const now = Date.now();
   const id = `s_${now.toString(36)}${crypto.randomBytes(3).toString("hex")}`;
   db.prepare(
-    `INSERT INTO suggestions (id, prompt, author, status, visitor, ip_hash, edit_of, created_at, updated_at)
-     VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
-  ).run(id, input.prompt, input.author, input.visitor, input.ipHash, input.editOf ?? null, now, now);
+    `INSERT INTO suggestions (id, prompt, author, status, visitor, ip_hash, edit_of, model, created_at, updated_at)
+     VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)`,
+  ).run(id, input.prompt, input.author, input.visitor, input.ipHash, input.editOf ?? null, input.model, now, now);
   addEvent(id, "pending", "Submitted");
   const s = getSuggestion(id)!;
   broadcast("suggestion.updated", suggestionDto(s));
   return s;
+}
+
+/** Free fast builds this hashed IP has left. Ideas Jev turned down never reached the build model, so they don't count. */
+export function fastBuildsLeft(ipHash: string) {
+  const { n } = db
+    .prepare("SELECT COUNT(*) AS n FROM suggestions WHERE ip_hash = ? AND model = 'fast' AND status != 'denied'")
+    .get(ipHash) as { n: number };
+  return Math.max(0, config.freeFastBuilds - n);
 }
 
 function addEvent(id: string, status: string, message?: string) {

@@ -1,4 +1,4 @@
-import type { Suggestion, SuggestionEvent, Widget } from "./types";
+import type { BuildModel, ModelOptions, Suggestion, SuggestionEvent, Widget } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -23,7 +23,8 @@ export const api = {
     request<{ likes: number; liked: boolean; downvoted: boolean }>(`/api/widgets/${id}/downvote`, { method: "POST" }),
   addScore: (delta: number) =>
     request<{ value: number }>("/api/score", { method: "POST", body: JSON.stringify({ delta }) }).then((r) => r.value),
-  submit: (body: { prompt: string; author: string; visitor: string; editOf?: string }) =>
+  models: () => request<ModelOptions>("/api/models"),
+  submit: (body: { prompt: string; author: string; visitor: string; editOf?: string; model: BuildModel }) =>
     request<Suggestion>("/api/suggestions", { method: "POST", body: JSON.stringify(body) }),
   /** The visitor's own builds (ids are kept in their browser). */
   mySuggestions: (ids: string[]) =>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BuildList } from "@/components/BuildsSheet";
 import { CapabilitiesDialog } from "@/components/CapabilitiesDialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -10,14 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { EXAMPLES } from "@/lib/format";
 import { load, save, visitorId } from "@/lib/storage";
-import type { Suggestion, Widget } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import type { BuildModel, ModelOptions, Suggestion, Widget } from "@/lib/types";
 import { useIsDesktop } from "@/lib/useMediaQuery";
 
 const DRAFT_KEY = "infinitedash:draft";
 const AUTHOR_KEY = "infinitedash:author";
+const MODEL_KEY = "infinitedash:model";
 
 const POWERED_BY = [
   { name: "Cerebras", href: "https://www.cerebras.ai", tagline: "ultra-fast LLM" },
+  { name: "OpenRouter", href: "https://openrouter.ai", tagline: "one API for every LLM" },
   { name: "Jev by TypeSafe", href: "https://typesafe.ai", tagline: "ultra-fast classifier" },
   { name: "TaskFuel", href: "https://taskfuel.ai", tagline: "2000+ tools for your agent" },
 ];
@@ -47,6 +51,15 @@ export function SubmitSheet(props: {
   const [author, setAuthor] = useState(() => load(AUTHOR_KEY, ""));
   const [sending, setSending] = useState(false);
   const [showCapabilities, setShowCapabilities] = useState(false);
+  const [picked, setPicked] = useState<BuildModel>(() => load(MODEL_KEY, "fast"));
+  const [models, setModels] = useState<ModelOptions>();
+  // Out of free fast builds: the server builds on the cheap model anyway, so show that.
+  const model: BuildModel = models?.fastLeft === 0 ? "cheap" : picked;
+
+  useEffect(() => {
+    if (props.open) api.models().then(setModels, () => {});
+  }, [props.open]);
+  useEffect(() => save(MODEL_KEY, picked), [picked]);
 
   useEffect(() => setChange(""), [editing?.id]);
   useEffect(() => {
@@ -72,8 +85,10 @@ export function SubmitSheet(props: {
         author: author.trim(),
         visitor: visitorId,
         editOf: editing?.id,
+        model,
       });
       setPrompt("");
+      api.models().then(setModels, () => {});
       props.onSubmitted(s);
     } catch (err) {
       toast.error((err as Error).message);
@@ -139,6 +154,7 @@ export function SubmitSheet(props: {
               className="text-base"
             />
           )}
+          {models && <ModelToggle options={models} value={model} onChange={setPicked} />}
           <Button type="submit" size="lg" disabled={!valid || sending} className="h-11 gap-2">
             {sending ? <Loader2Icon className="animate-spin" /> : <SendIcon />}
             {editing ? "Update it" : "Build it"}
@@ -208,5 +224,49 @@ export function SubmitSheet(props: {
         />
       </SheetContent>
     </Sheet>
+  );
+}
+
+function ModelToggle(props: { options: ModelOptions; value: BuildModel; onChange: (m: BuildModel) => void }) {
+  const { models, fastLeft, fastTotal } = props.options;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="text-xs font-medium text-muted-foreground">Model</div>
+      <div role="radiogroup" aria-label="Build model" className="flex flex-col gap-1 rounded-lg bg-muted p-1">
+        {models.map((m) => {
+          const disabled = m.key === "fast" && fastLeft === 0;
+          const selected = props.value === m.key;
+          return (
+            <button
+              key={m.key}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={disabled}
+              onClick={() => props.onChange(m.key)}
+              className={cn(
+                "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                selected ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                disabled && "cursor-not-allowed opacity-50 hover:text-muted-foreground",
+              )}
+            >
+              <span className="flex items-center gap-1.5 font-medium">
+                {m.label}
+                {m.tag && (
+                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                    {m.tag}
+                  </Badge>
+                )}
+              </span>
+              {m.key === "fast" && (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {fastLeft > 0 ? `${fastLeft} of ${fastTotal} free left` : "Free builds used up"}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

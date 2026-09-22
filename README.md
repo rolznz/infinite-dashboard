@@ -46,7 +46,7 @@ npm run dev                       # http://localhost:8080
 ```
 
 On boot the server creates `data/` (SQLite DB, widgets, builds, logs, screenshots) and
-logs whether your provider serves `PI_MODEL`. To start completely fresh, stop the
+logs whether Cerebras and OpenRouter serve the two build models. To start completely fresh, stop the
 server and delete `data/`.
 
 Production build: `npm run build && npm start`.
@@ -128,5 +128,7 @@ URLs (esm.sh / jsdelivr), and data comes from `sdk.tools` or public CORS endpoin
 
 ## Configuration
 
-See [`.env.example`](.env.example). Main knobs: `PI_MODEL`, `MAX_BUILDS`, `BUILD_TIMEOUT_MIN`,
+See [`.env.example`](.env.example). Main knobs: `FAST_MODEL` (Cerebras) and `CHEAP_MODEL`
+(OpenRouter), `FREE_FAST_BUILDS` (fast builds per hashed IP before it drops to the cheap model, default 3),
+`MAX_BUILDS`, `BUILD_TIMEOUT_MIN` (default 5), `CHEAP_BUILD_TIMEOUT_MIN` (OpenRouter builds, default 10),
 `MIN_TASKFUEL_BALANCE` (the queue pauses below it) and `SUBMITS_PER_IP_PER_HOUR`.
