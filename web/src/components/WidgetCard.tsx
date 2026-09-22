@@ -1,4 +1,4 @@
-import { GitForkIcon, HeartIcon, MoreHorizontalIcon, ThumbsDownIcon } from "lucide-react";
+import { GitForkIcon, HeartIcon, Maximize2Icon, Minimize2Icon, MoreHorizontalIcon, ThumbsDownIcon } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -81,6 +81,21 @@ export const WidgetCard = memo(function WidgetCard(props: {
   onFork: (prompt: string) => void;
 }) {
   const { widget: w } = props;
+  const [expanded, setExpanded] = useState(false);
+
+  // Expanding only restyles the card in place, so the widget stays mounted and keeps its state.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setExpanded(false);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [expanded]);
+
   return (
     <Card
       id={`widget-${w.id}`}
@@ -88,6 +103,9 @@ export const WidgetCard = memo(function WidgetCard(props: {
       className={cn(
         "h-[360px] scroll-mt-24 gap-0 overflow-hidden py-0 transition-shadow duration-700",
         props.highlighted && "ring-4 ring-amber-400",
+        // Above the header (z-40), below menus and sheets (z-50).
+        expanded &&
+          "fixed inset-0 z-[45] h-auto rounded-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
       )}
     >
       <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
@@ -118,6 +136,17 @@ export const WidgetCard = memo(function WidgetCard(props: {
           <HeartIcon className={cn(w.liked && "fill-current")} />
           {w.likes}
         </Button>
+        {expanded && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="-ml-1.5 text-muted-foreground"
+            onClick={() => setExpanded(false)}
+            aria-label="Exit full screen"
+          >
+            <Minimize2Icon />
+          </Button>
+        )}
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon-sm" className="-ml-1.5 text-muted-foreground" aria-label="More">
@@ -125,12 +154,21 @@ export const WidgetCard = memo(function WidgetCard(props: {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setExpanded((v) => !v)}>
+              {expanded ? <Minimize2Icon /> : <Maximize2Icon />}
+              {expanded ? "Exit full screen" : "Expand"}
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => props.onDownvote(w)}>
               <ThumbsDownIcon className={cn(w.downvoted && "fill-current")} />
               {w.downvoted ? "Remove downvote" : "Downvote"}
             </DropdownMenuItem>
             {w.prompt && (
-              <DropdownMenuItem onSelect={() => props.onFork(w.prompt!)}>
+              <DropdownMenuItem
+                onSelect={() => {
+                  setExpanded(false);
+                  props.onFork(w.prompt!);
+                }}
+              >
                 <GitForkIcon />
                 Fork
               </DropdownMenuItem>
