@@ -1,4 +1,4 @@
-import { GitForkIcon, HeartIcon, Maximize2Icon, Minimize2Icon, MoreHorizontalIcon, ThumbsDownIcon } from "lucide-react";
+import { GitForkIcon, HeartIcon, Maximize2Icon, Minimize2Icon, MoreHorizontalIcon, PencilIcon, ThumbsDownIcon } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -79,6 +79,8 @@ export const WidgetCard = memo(function WidgetCard(props: {
   onLike: (widget: Widget) => void;
   onDownvote: (widget: Widget) => void;
   onFork: (prompt: string) => void;
+  /** Only for the visitor's own widgets. */
+  onEdit?: (widgetId: string) => void;
 }) {
   const { widget: w } = props;
   const [expanded, setExpanded] = useState(false);
@@ -154,6 +156,17 @@ export const WidgetCard = memo(function WidgetCard(props: {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {props.onEdit && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  setExpanded(false);
+                  props.onEdit!(w.id);
+                }}
+              >
+                <PencilIcon />
+                Edit
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => setExpanded((v) => !v)}>
               {expanded ? <Minimize2Icon /> : <Maximize2Icon />}
               {expanded ? "Exit full screen" : "Expand"}

@@ -99,6 +99,7 @@ export default function App() {
     return () => offs.forEach((off) => off());
   }, [refresh]);
 
+  const mineWidgets = useMemo(() => new Set(builds.map((s) => s.editOf ?? s.widgetId).filter(Boolean)), [builds]);
   const running = useMemo(() => builds.filter((s) => IN_PROGRESS.includes(s.status)), [builds]);
   const inProgress = running.length;
   const runningTokens = running.reduce((n, s) => n + (s.tokens ?? 0), 0);
@@ -188,7 +189,7 @@ export default function App() {
   }
 
   /** Opens the change form for one of the visitor's live widgets, optionally prefilled (e.g. a denied change). */
-  function openEdit(widgetId: string, change?: string) {
+  const openEdit = useCallback((widgetId: string, change?: string) => {
     const w = widgetsRef.current?.find((x) => x.id === widgetId);
     if (!w) return toast.error("That widget isn't on the dashboard anymore");
     setBuildsOpen(false);
@@ -196,7 +197,7 @@ export default function App() {
     setForkOf(undefined);
     setEditOf(w);
     setSubmitOpen(true);
-  }
+  }, []);
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -224,6 +225,7 @@ export default function App() {
                     onLike={onLike}
                     onDownvote={onDownvote}
                     onFork={fork}
+                    onEdit={mineWidgets.has(w.id) ? openEdit : undefined}
                   />
                 </ErrorBoundary>
               ))}
